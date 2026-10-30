@@ -13,3 +13,7 @@ Built for the Meta Global AI Developer Hackathon (Indie track, "Build for Your W
 | `docs/` | Plan and design notes |
 
 See [docs/plan.md](docs/plan.md) for the plan.
+
+## License
+
+fixalong is licensed under the [GNU Affero General Public License v3.0](LICENSE). If you run a modified version, including as a network service, you must share your changes under the same license. Third-party SDKs and packages (Unity, Meta XR SDK and others) keep their own licenses.

@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# Recorded sessions hold photos of someone's home.
+server/sessions/
+
 # Python
 .venv/
 __pycache__/

@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fixalong live view</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #f6f5f2; --panel: #ffffff; --text: #1d1c1a; --dim: #6b6862; --line: #e3e0da;
+    --felix: #e8721c; --ok: #2f8a4c; --warn: #b7791f; --bad: #c0392b; --info: #3b6fb6;
+    --code-bg: #f0eee9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161514; --panel: #201f1d; --text: #ecebe8; --dim: #9a968f; --line: #34322f;
+      --felix: #ff9a4d; --ok: #5cc27e; --warn: #e0b04f; --bad: #ef6b5e; --info: #7aa7e8;
+      --code-bg: #2a2926;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: 10px 16px;
+           align-items: center; padding: 12px 16px; background: var(--panel);
+           border-bottom: 1px solid var(--line); }
+  h1 { font-size: 17px; margin: 0 8px 0 0; }
+  h1 span { color: var(--felix); }
+  .pill { font-size: 13px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line);
+          color: var(--dim); }
+  .pill.on { color: var(--ok); border-color: var(--ok); }
+  .pill.off { color: var(--bad); border-color: var(--bad); }
+  select { font: inherit; font-size: 14px; padding: 4px 6px; background: var(--panel); color: var(--text);
+           border: 1px solid var(--line); border-radius: 6px; max-width: 100%; }
+  main { max-width: 900px; margin: 0 auto; padding: 12px 16px 80px; }
+  .row { display: grid; grid-template-columns: 64px 1fr; gap: 12px; padding: 10px 12px; margin: 6px 0;
+         background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--line);
+         border-radius: 8px; }
+  .time { color: var(--dim); font: 12px/1.9 ui-monospace, Consolas, monospace; }
+  .body { min-width: 0; overflow-wrap: anywhere; }
+  .k-connected, .k-hello { border-left-color: var(--ok); }
+  .k-disconnected { border-left-color: var(--bad); }
+  .k-photo { border-left-color: var(--info); }
+  .k-felix_says { border-left-color: var(--felix); }
+  .k-error { border-left-color: var(--bad); }
+  .k-headset_log { padding: 6px 12px; }
+  .felix { font-size: 16px; }
+  .felix::before { content: "Felix: "; color: var(--felix); font-weight: 600; }
+  .meta, .label, .dim { color: var(--dim); font-size: 13px; }
+  audio { display: block; margin-top: 6px; height: 32px; width: min(100%, 320px); }
+  img { display: block; margin-top: 6px; max-width: min(100%, 360px); border-radius: 6px;
+        border: 1px solid var(--line); }
+  code { font: 12.5px/1.5 ui-monospace, Consolas, monospace; background: var(--code-bg);
+         padding: 2px 6px; border-radius: 4px; white-space: pre-wrap; }
+  code.warning { color: var(--warn); }
+  code.error, code.exception, code.assert { color: var(--bad); }
+  .divider { margin: 18px 0 6px; color: var(--dim); font-size: 13px; text-align: center; }
+  .empty { color: var(--dim); text-align: center; margin-top: 60px; }
+</style>
+</head>
+<body>
+<header>
+  <h1><span>fixalong</span> live view</h1>
+  <span id="feed" class="pill">Live feed: connecting</span>
+  <span id="headset" class="pill">Headset: unknown</span>
+  <label class="dim">Session
+    <select id="session"><option value="live">Live: follow the newest</option></select>
+  </label>
+</header>
+<main id="timeline"></main>
+
+<script>
+const timeline = document.getElementById("timeline");
+const picker = document.getElementById("session");
+const feedPill = document.getElementById("feed");
+const headsetPill = document.getElementById("headset");
+let shown = null; // the session on screen
+
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text != null) node.textContent = text;
+  return node;
+}
+const fileUrl = (session, path) => `/sessions/${session}/${path}`;
+const secs = msValue => (msValue / 1000).toFixed(1) + "s";
+
+function setPill(pill, label, state) {
+  pill.textContent = label;
+  pill.className = "pill" + (state === true ? " on" : state === false ? " off" : "");
+}
+
+function render(session, e) {
+  timeline.querySelector(".empty")?.remove();
+  const nearBottom = innerHeight + scrollY >= document.body.scrollHeight - 80;
+  const row = el("div", "row k-" + e.kind);
+  row.append(el("span", "time", "+" + e.t.toFixed(1) + "s"));
+  const body = el("div", "body");
+  switch (e.kind) {
+    case "connected":
+      body.append(el("b", null, "Headset connected"), el("span", "dim", " from " + (e.address || "?")));
+      setPill(headsetPill, "Headset: connected", true);
+      break;
+    case "disconnected":
+      body.append(el("b", null, "Headset disconnected"));
+      setPill(headsetPill, "Headset: offline", false);
+      break;
+    case "hello":
+      body.textContent = `Hello from ${e.device || "the headset"} (app ${e.app || "?"})`;
+      break;
+    case "photo": {
+      const link = el("a");
+      link.href = fileUrl(session, e.file);
+      link.target = "_blank";
+      const img = el("img");
+      img.src = link.href;
+      img.alt = "Photo from the headset";
+      link.append(img);
+      body.append(el("div", "label", `Photo ${e.file} · ${e.kb} KB`), link);
+      break;
+    }
+    case "felix_says": {
+      const timing = [];
+      if (e.think_ms != null) timing.push("thought " + secs(e.think_ms));
+      timing.push("voice " + secs(e.voice_ms));
+      const audio = el("audio");
+      audio.controls = true;
+      audio.preload = "none";
+      audio.src = fileUrl(session, e.audio);
+      body.append(el("div", "felix", e.text), el("div", "meta", timing.join(" · ")), audio);
+      break;
+    }
+    case "headset_log":
+      body.append(el("code", (e.level || "").toLowerCase(), e.text));
+      break;
+    case "error":
+      body.append(el("b", null, `Error while handling "${e.during}": `), el("code", "error", e.error));
+      break;
+    default:
+      body.append(el("code", null, JSON.stringify(e)));
+  }
+  row.append(body);
+  timeline.append(row);
+  if (nearBottom) row.scrollIntoView({ block: "end" });
+}
+
+async function loadSessions() {
+  const sessions = await (await fetch("/api/sessions")).json();
+  const current = picker.value;
+  picker.length = 1;
+  for (const s of sessions) picker.append(new Option(`${s.id} (${s.events} events)`, s.id));
+  picker.value = current;
+  return sessions;
+}
+
+async function show(sessionId) {
+  timeline.replaceChildren();
+  shown = sessionId;
+  if (!sessionId) {
+    timeline.append(el("p", "empty", "No sessions yet. Open fixalong on the headset."));
+    return;
+  }
+  const events = await (await fetch(`/api/sessions/${sessionId}/events`)).json();
+  for (const e of events) render(sessionId, e);
+}
+
+function connectFeed() {
+  const feed = new WebSocket(`ws://${location.host}/monitor`);
+  feed.onopen = () => setPill(feedPill, "Live feed: on", true);
+  feed.onclose = () => {
+    setPill(feedPill, "Live feed: reconnecting", false);
+    setTimeout(connectFeed, 2000);
+  };
+  feed.onmessage = message => {
+    const { session, event } = JSON.parse(message.data);
+    if (event.kind === "connected") loadSessions();
+    if (picker.value !== "live") return;
+    if (session !== shown) {
+      if (shown) timeline.append(el("div", "divider", `New session ${session}`));
+      else timeline.replaceChildren();
+      shown = session;
+    }
+    render(session, event);
+  };
+}
+
+picker.onchange = async () => {
+  if (picker.value === "live") {
+    const sessions = await loadSessions();
+    await show(sessions[0]?.id);
+  } else {
+    await show(picker.value);
+  }
+};
+
+(async () => {
+  const sessions = await loadSessions();
+  await show(sessions[0]?.id);
+  connectFeed();
+})();
+</script>
+</body>
+</html>

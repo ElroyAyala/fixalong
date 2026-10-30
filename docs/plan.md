@@ -25,6 +25,7 @@ Everything happens in the headset, and Felix only acts when you call him.
 | Calling Felix | Say "Felix"; a pinch is the backup | Hands stay free for the repair. Transcription runs all session and is cheap; the agent model only runs when you call him. |
 | Felix's voice | ElevenLabs, generated on the server | A characterful voice, and the key stays on the server. A stock or designed voice, never one imitating a real person. |
 | Where the agent runs | Python server on the PC; the headset is a thin client | Keeps the API key off the headset. The same server can move to the cloud later. |
+| Moving around | Boundaryless app; the headset reaches the server over home Wi-Fi | You can walk off to get a tool without a boundary warning or a cable. Meta allows boundaryless mode for passthrough-only apps. A site off the home network would need the server in the cloud. |
 | Repair know-how | Web search, plus reference videos we record ourselves | Covers any repair; our own videos keep the rights clean. |
 | Tool memory | After highlights | It reuses the photo-to-room step that highlights need. |
 | Game layer | Quest log now, XP later | The quest log is the agent's plan, so it's core. XP sits on top. |
@@ -55,7 +56,7 @@ Quest 3 (Unity)                    PC server (Python)              Meta Model AP
                                    browser agent view
 ```
 
-- **Headset:** shows passthrough and Felix, captures camera frames and mic audio, and plays back what the server sends: Felix's voice, the quest log panel and highlights. No decisions are made here, and no keys are stored here. It saves room positions as Quest spatial anchors.
+- **Headset:** shows passthrough and Felix, captures camera frames and mic audio, and plays back what the server sends: Felix's voice, the quest log panel and highlights. No decisions are made here, and no keys are stored here. It saves room positions as Quest spatial anchors. It reaches the server over home Wi-Fi, with USB (`adb reverse`) as a fallback.
 - **Server:** one session per headset over a WebSocket. It runs the agent loop, holds the API keys, enforces the safety gates, turns Felix's words into audio, saves every headset photo, and serves a browser page that shows the agent's reasoning and tool calls live.
 
 ## The agent
@@ -99,6 +100,7 @@ The API only supports `tool_choice: "auto"`, so the model always decides for its
 
 - Meta's passthrough guidance says not to make users read fine text through passthrough. Felix reads labels and part numbers from photos and says them out loud.
 - Felix, the quest log panel and highlights stay out of the work area, so they never cover your hands.
+- Without a boundary, nothing warns you about walls or stairs. Meta's boundaryless best practices apply, and Felix should never ask you to look at him while you're walking.
 
 ## Open research
 
