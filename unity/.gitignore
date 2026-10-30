@@ -107,3 +107,10 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# fixalong: machine-specific Meta files that must stay out of the public repo.
+# Immersive Debugger dev-agent settings hold an access token and a LAN address.
+/[Aa]ssets/[Rr]esources/DevAgentSettings.asset
+/[Aa]ssets/[Rr]esources/DevAgentSettings.asset.meta
+# Meta XR Operator's Windows OpenXR layer; the Project Setup Tool recreates it.
+/[Aa]ssets/XR/APILayers~/

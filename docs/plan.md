@@ -19,10 +19,11 @@ Everything happens in the headset, and Felix only acts when you call him.
 
 | Area | Decision | Why |
 |---|---|---|
-| Engine | Unity | Meta's passthrough camera, hand tracking and mixed reality tools are Unity-first. |
+| Engine | Unity 6000.6.2f1 (URP), OpenXR, Meta XR SDK v207 | Meta's passthrough camera, hand tracking and mixed reality tools are Unity-first. OpenXR is Meta's recommended plugin; the Oculus plugin is deprecated. |
 | Demo repair | Running toilet | Ground level, so it's safe in a headset. Several possible causes, so the agent has to diagnose. Wasted water gives it real impact. |
 | Agent | Felix, a small floating companion | Gives the "Felix arrives" moment without heavy art work. Not Disney's Fix-It Felix: no shared name or look. |
 | Calling Felix | Say "Felix"; a pinch is the backup | Hands stay free for the repair. Transcription runs all session and is cheap; the agent model only runs when you call him. |
+| Felix's voice | ElevenLabs, generated on the server | A characterful voice, and the key stays on the server. A stock or designed voice, never one imitating a real person. |
 | Where the agent runs | Python server on the PC; the headset is a thin client | Keeps the API key off the headset. The same server can move to the cloud later. |
 | Repair know-how | Web search, plus reference videos we record ourselves | Covers any repair; our own videos keep the rights clean. |
 | Tool memory | After highlights | It reuses the photo-to-room step that highlights need. |
@@ -41,7 +42,7 @@ Everything happens in the headset, and Felix only acts when you call him.
 | Highlighting the exact part | SAM 3.1 (`sam-3.1`) |
 | Listening, including the "Felix" wake word | Muse Voice Transcribe (`muse-voice-transcribe-1.0`), realtime |
 
-Muse Wonder (`muse-wonder-1.0`) is held in reserve in case Spark's planning falls short. Meta's API has no text-to-speech model, so Felix's voice comes from the headset side, most likely Meta's Voice SDK.
+Muse Wonder (`muse-wonder-1.0`) is held in reserve in case Spark's planning falls short. Meta's API has no text-to-speech model, so the server gives Felix his voice with ElevenLabs.
 
 ## How it fits together
 
@@ -50,11 +51,12 @@ Quest 3 (Unity)                    PC server (Python)              Meta Model AP
   camera frames  ───────────────▶  session + agent loop  ───────▶  Muse Spark 1.3
   mic audio      ───────────────▶  voice relay           ───────▶  Muse Voice Transcribe
   Felix, quest log, highlights ◀── safety gates (code)   ───────▶  SAM 3.1
+  Felix's voice (audio)        ◀── speech synthesis      ───────▶  ElevenLabs
                                    browser agent view
 ```
 
-- **Headset:** shows passthrough and Felix, captures camera frames and mic audio, and plays back what the server sends: Felix's speech, the quest log panel and highlights. No decisions are made here. It saves room positions as Quest spatial anchors.
-- **Server:** one session per headset over a WebSocket. It runs the agent loop, holds the API key, enforces the safety gates, saves every headset photo, and serves a browser page that shows the agent's reasoning and tool calls live.
+- **Headset:** shows passthrough and Felix, captures camera frames and mic audio, and plays back what the server sends: Felix's voice, the quest log panel and highlights. No decisions are made here, and no keys are stored here. It saves room positions as Quest spatial anchors.
+- **Server:** one session per headset over a WebSocket. It runs the agent loop, holds the API keys, enforces the safety gates, turns Felix's words into audio, saves every headset photo, and serves a browser page that shows the agent's reasoning and tool calls live.
 
 ## The agent
 
@@ -104,13 +106,13 @@ Each item gets answered before the part that depends on it is built.
 
 1. **Images in tool results:** can a `function_call_output` carry an image in Meta's Responses API, or does `look` have to attach the photo to a new user turn?
 2. **Video timestamps:** can Muse Spark say where in a reference video a step happens, so Felix can play just that clip?
-3. **Photo point to room position:** turning a point in a passthrough camera photo into a spot in the room (camera pose plus environment depth). Highlights and tool memory both depend on it.
+3. **Photo point to room position:** *answered.* Meta's `PassthroughCameraAccess.ViewportPointToRay()` turns a photo point into a ray from the camera, and MR Utility Kit's `EnvironmentRaycastManager.Raycast()` finds where it meets a real surface using live depth. Meta's CameraToWorld sample shows the pattern. Highlights and tool memory both use it.
 4. **Latency:** how fast Muse Spark vision calls and SAM 3.1 return at each reasoning effort, which sets what a turn can afford.
 5. **Voice relay:** streaming the headset mic through the server to Muse Voice Transcribe realtime (24 kHz, 16-bit PCM), so the key stays on the server.
 6. **Wake word:** catching "Felix" reliably in the realtime transcript (Transcribe's keyword hint helps) and ignoring speech that isn't for him.
-7. **Felix's voice:** Meta Voice SDK text-to-speech (which voices, setup, whether it works on Quest under Unity 6), with Android's built-in voice as the fallback.
+7. **Felix's voice:** *decided:* ElevenLabs on the server. Still to pick: the voice, and whether to stream audio to the headset or send whole clips.
 8. **Spatial anchors:** saving and reloading room positions across sessions (`OVRSpatialAnchor`) for tool memory.
-9. **Unity setup:** Unity and Meta XR SDK versions, and whether to start from Meta's mixed reality template or Building Blocks.
+9. **Unity setup:** *answered.* Unity 6000.6.2f1 from the URP blank template, the OpenXR plugin (1.19), and Meta XR Core SDK, MR Utility Kit and Interaction SDK at v207.0.1. Meta's Project Setup Tool applies the remaining settings. The camera supports up to 1280×1280 (1728×1728 on Horizon OS v209 and later), so the app reads the actual size at runtime instead of assuming one.
 
 ## Build order
 
@@ -132,5 +134,5 @@ Once the thin headset loop works, every photo it takes is saved, so agent work a
 - Every model used is on the hackathon's list.
 - The repo is public, and nothing from the earlier prototype is in it.
 - Reference videos are our own recordings.
-- Felix's name and look don't borrow from Disney's Fix-It Felix.
-- The API key lives in `server/.env`, which is git-ignored, and never goes on the headset.
+- Felix's name, look and voice don't borrow from Disney's Fix-It Felix or any real person.
+- API keys (Meta, ElevenLabs) live in `server/.env`, which is git-ignored, and never go on the headset.
