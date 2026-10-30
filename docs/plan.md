@@ -29,7 +29,8 @@ Everything happens in the headset, and Felix only acts when you call him.
 | Repair know-how | Web search, plus reference videos we record ourselves | Covers any repair; our own videos keep the rights clean. |
 | Felix's eyes | A photo with everything you say to him, never in the background | Calls stay yours to start, and every photo can also refresh tool memory. Felix ignores photos that don't show the job. Once the agent loop exists, he can ask for extra shots. |
 | Conversation | Once you call him, the conversation stays open until a minute after he last spoke. He waits until you pause before he speaks, stays quiet when nothing needs an answer, and starts over if you add more before he answers. No interrupting him yet. | In testing, an 8-second window missed answers given after doing what he asked. The mic pauses while he speaks, so he never hears himself. |
-| Tool memory | After highlights. Felix identifies a tool once; the Quest anchors its spot. | "Felix, where's my wrench?" asks the headset for the anchor, so Felix never has to watch. The Quest remembers the place, not the object: a moved tool shows where it was last marked or seen. |
+| Part labels | Every photo Felix gets is also searched for the repair parts in view. Each part gets a name tag pinned on it in the room, and the part Felix talks about gets an arrow. | You learn the names as you work and see exactly which part he means. Muse Spark's points were accurate on real headset photos. Thin parts like a chain are hard to spot, so Felix may point at what they attach to. |
+| Tool memory | After part labels. Felix identifies a tool once; the Quest anchors its spot. | "Felix, where's my wrench?" asks the headset for the anchor, so Felix never has to watch. The Quest remembers the place, not the object: a moved tool shows where it was last marked or seen. |
 | Game layer | Quest log now, XP later | The quest log is the agent's plan, so it's core. XP sits on top. |
 | Build order | Thin headset loop early | The ideal experience is in the headset, and Unity is the unfamiliar part. |
 | Repo | One repo: `unity/`, `server/`, `docs/` | One public link with everything. |
@@ -66,9 +67,9 @@ Quest 3 (Unity)                    PC server (Python)              Meta Model AP
 ### Phases
 
 1. **Arrival:** Felix appears and asks what you're working on.
-2. **Investigate:** you describe the problem and show Felix what he asks to see. He narrows down the cause.
+2. **Investigate:** you describe the problem; if you're not at it yet, Felix asks you to head over and show him. He narrows down the cause from what you tell him and show him.
 3. **Plan:** he writes the quest log as structured JSON: ordered steps, each with a safety gate or a check.
-4. **Guide:** one step at a time. Before the first hands-on step, he gives one short safety tip that fits the job. He explains each step, highlights the part, waits for "done," then checks the result.
+4. **Guide:** one step at a time. Right before the first hands-on step, he gives one short safety tip that fits that step, and skips tips for steps you've already done. He explains each step, highlights the part, waits for "done," then checks the result.
 5. **Complete:** a final test: flush, the tank refills, and the water stops running.
 6. **Close out:** putting things back, cleaning up, and one thing to keep an eye on later.
 
@@ -111,7 +112,7 @@ Each item gets answered before the part that depends on it is built.
 
 1. **Images in tool results:** can a `function_call_output` carry an image in Meta's Responses API, or does `look` have to attach the photo to a new user turn?
 2. **Video timestamps:** can Muse Spark say where in a reference video a step happens, so Felix can play just that clip?
-3. **Photo point to room position:** *answered.* Meta's `PassthroughCameraAccess.ViewportPointToRay()` turns a photo point into a ray from the camera, and MR Utility Kit's `EnvironmentRaycastManager.Raycast()` finds where it meets a real surface using live depth. Meta's CameraToWorld sample shows the pattern. Highlights and tool memory both use it.
+3. **Photo point to room position:** *answered.* Meta's `PassthroughCameraAccess.ViewportPointToRay()` turns a photo point into a ray from the camera, and MR Utility Kit's `EnvironmentRaycastManager.Raycast()` finds where it meets a real surface using live depth. Meta's CameraToWorld sample shows the pattern. Part labels use it now; tool memory will too. It needs the spatial data permission (`com.oculus.permission.USE_SCENE`).
 4. **Latency:** how fast Muse Spark vision calls and SAM 3.1 return at each reasoning effort, which sets what a turn can afford. *Measured so far:* a Muse Spark turn with a photo takes about 2-3.5 s at low effort and 1.5 s at minimal. Meta's stored conversations (`previous_response_id`) added 8-10 s per follow-up, so the server keeps the history itself and attaches only the last two photos. SAM 3.1 is still to measure.
 5. **Voice relay:** *answered.* The headset streams 24 kHz 16-bit mono PCM to the server, which relays it to `wss://api.meta.ai/v1/asr/realtime` in `ENDPOINTING` mode; Meta's model marks where each sentence ends (`speechComplete`). Audio must keep real-time pace or the stream closes (code 1008), so the headset sends silence while Felix talks rather than pausing.
 6. **Wake word:** "Felix" is passed as a recognition keyword, and the server checks each finished sentence for his name. Still to measure: how reliably it's caught in a noisy bathroom.
@@ -127,8 +128,8 @@ Each item gets answered before the part that depends on it is built.
 4. Voice in: the headset streams its mic through the server to Muse Voice Transcribe realtime. "Felix" opens a conversation that stays open until a minute after he last spoke, everything you say to him comes with a photo, and he remembers the conversation within a session. *(done)*
 5. The agent loop, worked on at the desk: replay saved headset photos and type answers in the browser agent view. Get Felix to diagnose and guide a running-toilet fix end to end, using web search and a reference video.
 6. Safety gates, the validated quest log and the separate verifier.
-7. Highlights on still images: a Muse Spark point becomes a SAM 3.1 mask, shown in the browser agent view.
-8. Highlights anchored on the real part in the headset.
+7. Part labels and an arrow: Muse Spark names the parts in each photo with a point on each, the headset pins a name tag on each part with a depth raycast, and an arrow marks the part Felix names. The live view draws the labels on each photo. *(done)*
+8. Outlines: SAM 3.1 masks show a part's exact shape where a point isn't enough.
 9. Tool memory: Felix remembers where he last saw each tool, using spatial anchors so it lasts between sessions.
 10. XP and quest rewards.
 
@@ -136,7 +137,8 @@ Once the thin headset loop works, every photo it takes is saved, so agent work a
 
 ## Compliance checklist
 
-- Every model used is on the hackathon's list.
+- Felix's thinking, seeing and hearing run on Meta's models (Muse Spark and Muse Voice Transcribe). His voice is ElevenLabs, because Meta's list has no text-to-speech model; the rules require meaningful use of Meta's models, not Meta's models only.
+- The ElevenLabs plan allows Felix's voice in a public demo video (free plans require attribution).
 - The repo is public, and nothing from the earlier prototype is in it.
 - Reference videos are our own recordings.
 - Felix's name, look and voice don't borrow from Disney's Fix-It Felix or any real person.

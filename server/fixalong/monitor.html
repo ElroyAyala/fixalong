@@ -42,6 +42,14 @@
   .k-disconnected { border-left-color: var(--bad); }
   .k-photo { border-left-color: var(--info); }
   .k-felix_says, .k-felix_quiet { border-left-color: var(--felix); }
+  .k-parts { border-left-color: var(--info); }
+  .labeled { position: relative; display: inline-block; max-width: min(100%, 360px); margin-top: 6px; }
+  .labeled img { max-width: 100%; margin-top: 0; }
+  .tag { position: absolute; transform: translate(-50%, calc(-100% - 6px)); white-space: nowrap;
+         background: rgb(20 20 24 / 0.85); color: #fff; font-size: 11px; padding: 2px 6px;
+         border-radius: 6px; pointer-events: none; }
+  .tag::after { content: ""; position: absolute; left: 50%; top: calc(100% + 2px); width: 7px; height: 7px;
+                margin-left: -3.5px; border-radius: 50%; background: var(--felix); border: 1px solid #fff; }
   .k-error { border-left-color: var(--bad); }
   .k-headset_log { padding: 6px 12px; }
   .felix { font-size: 16px; }
@@ -145,6 +153,27 @@ function render(session, e) {
       body.append(el("div", "you", e.text),
                   el("div", "meta", e.for_felix ? "for Felix" : "not for Felix (no name, conversation closed)"));
       break;
+    case "parts": {
+      // The labels as the headset places them: a dot on each part, its name above.
+      const names = e.parts.map(p => p.name).join(", ") || "no parts found";
+      const what = e.named_in ? "The part Felix named" : "Labels";
+      body.append(el("div", "label", `${what} in ${e.photo} · found in ${secs(e.think_ms)}: ${names}`));
+      if (e.photo && e.parts.length) {
+        const frame = el("div", "labeled");
+        const img = el("img");
+        img.src = fileUrl(session, e.photo);
+        img.alt = "Photo with part labels";
+        frame.append(img);
+        for (const p of e.parts) {
+          const tag = el("span", "tag", p.name);
+          tag.style.left = p.x / 10 + "%";
+          tag.style.top = p.y / 10 + "%";
+          frame.append(tag);
+        }
+        body.append(frame);
+      }
+      break;
+    }
     case "rethink":
       body.append(el("span", "dim", "You said more before Felix answered, so he started over with all of it"));
       break;
@@ -162,6 +191,7 @@ function render(session, e) {
       const timing = [];
       if (e.think_ms != null) timing.push("thought " + secs(e.think_ms));
       timing.push("voice " + secs(e.voice_ms));
+      if (e.focus?.length) timing.push("pointing at " + e.focus.join(", "));
       const audio = el("audio");
       audio.controls = true;
       audio.preload = "none";

@@ -14,14 +14,19 @@ sends everything else as JSON text frames:
                             (answers a "snap"; an empty image means the camera wasn't ready)
                         {"type": "log", "level": str, "text": str}
     server -> headset   {"type": "say", "text": str, "audio": "<base64 16-bit mono PCM>",
-                         "sample_rate": int, "follow_up": seconds}
+                         "sample_rate": int, "follow_up": seconds, "focus": [part names]}
                         {"type": "quiet", "follow_up": seconds}  Felix chose not to answer
                         {"type": "snap", "id": str}       take a photo now
                         {"type": "listening", "text": str} what Felix is hearing
                         {"type": "heard", "text": str}     what Felix is about to answer
+                        {"type": "labels", "photo": snap id, "parts": [{"name", "x", "y"}]}
+                            the parts in that photo, on a 0-1000 grid from its top left
+                        {"type": "focus", "focus": [part names]}  point at these labels
 
 follow_up is how long Felix keeps listening without his name: the
 conversation stays open until CONVERSATION_SECONDS after he last spoke.
+focus lists the labeled parts Felix is talking about, so the headset can
+point at them; an empty list puts the arrow away.
 
 Every connection is recorded as a session (see session.py).
 """
@@ -38,7 +43,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse
 
-from . import config, felix, voice
+from . import config, felix, parts, voice
 from .ears import Ears
 from .session import Session, monitor
 
@@ -86,6 +91,10 @@ class Headset:
         self._last_partial = ""
         self._speech_started: float | None = None
         self._heard_at = 0.0  # when you last said anything
+        self._labels: list[str] = []  # every part labeled this session, oldest first
+        self._labeling = False
+        self._named: dict[str, list[str]] = {}  # parts found for a reply he hasn't said yet
+        self._last_reply = ""
 
     async def run(self) -> None:
         while True:
@@ -204,11 +213,13 @@ class Headset:
             await asyncio.wait([after])  # the turn this one replaces
         await asyncio.sleep(max(0.0, self._speaking_until - time.monotonic()))  # let him finish
         await self.send({"type": "heard", "text": " ".join(self._unanswered)})
-        jpeg, photo = await self.request_photo()
+        jpeg, photo, photo_id = await self.request_photo()
+        if jpeg:
+            self.label(jpeg, photo, photo_id)
         count = len(self._unanswered)
         said = " ".join(self._unanswered)
         start = time.perf_counter()
-        reply = await self.conversation.reply(said, jpeg)
+        reply = await self.conversation.reply(said, jpeg, self._labels)
         think_ms = ms(start)
         if reply is None:
             del self._unanswered[:count]
@@ -216,6 +227,9 @@ class Headset:
             await self.send({"type": "quiet",
                              "follow_up": max(0.0, self._open_until - time.monotonic())})
             return
+        if jpeg and self._labels and not parts.mentioned(reply, self._labels):
+            # He may mean a part with no label yet, like a thin chain: look for it.
+            self.spawn(self._label(jpeg, photo, photo_id, named_in=reply))
         try:
             start = time.perf_counter()
             audio = await voice.speak(reply)
@@ -240,18 +254,61 @@ class Headset:
                 return
             await asyncio.sleep(0.1)
 
-    async def request_photo(self) -> tuple[bytes | None, str | None]:
+    async def request_photo(self) -> tuple[bytes | None, str | None, str]:
+        """A photo from the headset: (JPEG, saved file, snap id)."""
         request = uuid.uuid4().hex[:8]
         future = asyncio.get_running_loop().create_future()
         self._photo_requests[request] = future
         try:
             await self.send({"type": "snap", "id": request})
-            return await asyncio.wait_for(future, config.PHOTO_TIMEOUT_SECONDS)
+            jpeg, photo = await asyncio.wait_for(future, config.PHOTO_TIMEOUT_SECONDS)
+            return jpeg, photo, request
         except asyncio.TimeoutError:
             self.session.event("photo_timeout", id=request)
-            return None, None
+            return None, None, request
         finally:
             self._photo_requests.pop(request, None)
+
+    # -- labels on the parts Felix sees
+
+    def label(self, jpeg: bytes, photo: str | None, photo_id: str) -> None:
+        """Find the parts in a photo in the background, one photo at a time."""
+        if self._labeling:
+            return
+        self._labeling = True
+        self.spawn(self._label(jpeg, photo, photo_id))
+
+    async def _label(self, jpeg: bytes, photo: str | None, photo_id: str,
+                     named_in: str | None = None) -> None:
+        """Label the parts in a photo, or with named_in, just the part that reply is about."""
+        try:
+            start = time.perf_counter()
+            if named_in is None:
+                found = await parts.find(jpeg, self._labels)
+            else:
+                found = await parts.find_named(jpeg, named_in, self._labels)
+            self.session.event("parts", photo=photo, parts=found, think_ms=ms(start),
+                               named_in=named_in)
+            if not found:
+                return
+            self._labels += [p["name"] for p in found if p["name"] not in self._labels]
+            await self.send({"type": "labels", "photo": photo_id, "parts": found})
+            if named_in is None:
+                # Felix may already be talking about a part this photo just labeled.
+                focus = parts.mentioned(self._last_reply, self._labels)
+            elif named_in == self._last_reply:
+                focus = [p["name"] for p in found]  # he's already saying it
+            else:
+                self._named[named_in] = [p["name"] for p in found]  # say() points when he does
+                focus = []
+            if focus:
+                await self.send({"type": "focus", "focus": focus})
+        except Exception as error:
+            log.exception("labeling failed")
+            self.session.event("error", during="labels", error=repr(error))
+        finally:
+            if named_in is None:
+                self._labeling = False
 
     async def say(self, text: str, audio: bytes | None = None, **context) -> None:
         self._answering = True
@@ -260,12 +317,15 @@ class Headset:
                 start = time.perf_counter()
                 audio = await voice.speak(text)
                 context["voice_ms"] = ms(start)
+            focus = parts.mentioned(text, self._labels) or self._named.pop(text, [])
             speech = self.session.save_speech(audio, config.VOICE_SAMPLE_RATE)
-            self.session.event("felix_says", text=text, audio=speech, **context)
+            self.session.event("felix_says", text=text, audio=speech, focus=focus, **context)
             await self.send({"type": "say", "text": text,
                              "audio": base64.b64encode(audio).decode(),
                              "sample_rate": config.VOICE_SAMPLE_RATE,
-                             "follow_up": config.CONVERSATION_SECONDS})
+                             "follow_up": config.CONVERSATION_SECONDS,
+                             "focus": focus})
+            self._last_reply = text
             self._speaking_until = time.monotonic() + len(audio) / 2 / config.VOICE_SAMPLE_RATE
             self._open_until = self._speaking_until + config.CONVERSATION_SECONDS
         finally:

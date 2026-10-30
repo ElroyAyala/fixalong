@@ -24,6 +24,9 @@ namespace Fixalong
 
         public bool IsReady => _camera != null && _camera.IsPlaying;
 
+        /// <summary>Where the camera was for the last photo, to turn points in it into rays.</summary>
+        public Pose LastPose { get; private set; }
+
         void Awake() => _camera = GetComponent<PassthroughCameraAccess>();
 
         /// <summary>Start the camera. Call once the camera permission is granted.</summary>
@@ -56,6 +59,7 @@ namespace Fixalong
             var size = _camera.CurrentResolution;
             var pixels = _camera.GetColors();
             if (!pixels.IsCreated || pixels.Length != size.x * size.y) return null;
+            LastPose = _camera.GetCameraPose();
             if (_texture == null || _texture.width != size.x || _texture.height != size.y)
             {
                 if (_texture != null) Destroy(_texture);

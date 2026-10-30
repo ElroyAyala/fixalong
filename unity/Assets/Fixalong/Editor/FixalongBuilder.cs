@@ -56,6 +56,7 @@ namespace Fixalong.Editor
             cameraAccess.RequestedResolution = new Vector2Int(1280, 960);
             cameraAccess.enabled = false; // CameraSnap starts it once the permission is granted
             var cameraSnap = cameraObject.AddComponent<CameraSnap>();
+            var labels = BuildPartLabels(cameraAccess);
 
             var appObject = new GameObject("fixalong");
             var link = appObject.AddComponent<FelixLink>();
@@ -68,6 +69,7 @@ namespace Fixalong.Editor
             app.felix = felix;
             app.cameraSnap = cameraSnap;
             app.mic = mic;
+            app.labels = labels;
 
             EnsureFolder(Path.GetDirectoryName(ScenePath));
             EditorSceneManager.SaveScene(scene, ScenePath);
@@ -99,6 +101,7 @@ namespace Fixalong.Editor
             config.handTrackingSupport = OVRProjectConfig.HandTrackingSupport.ControllersAndHands;
             config.insightPassthroughSupport = OVRProjectConfig.FeatureSupport.Required;
             config.isPassthroughCameraAccessEnabled = true;
+            config.sceneSupport = OVRProjectConfig.FeatureSupport.Supported; // depth raycasts for labels
             OVRProjectConfig.CommitProjectConfig(config);
 
             PlayerSettings.Android.forceInternetPermission = true; // the server link
@@ -108,6 +111,9 @@ namespace Fixalong.Editor
                 "<uses-permission android:name=\"horizonos.permission.HEADSET_CAMERA\" />");
             EnsureManifestEntry("android.permission.RECORD_AUDIO",
                 "<uses-permission android:name=\"android.permission.RECORD_AUDIO\" />");
+            // Spatial data: the depth raycast that pins part labels to the room needs it.
+            EnsureManifestEntry("com.oculus.permission.USE_SCENE",
+                "<uses-permission android:name=\"com.oculus.permission.USE_SCENE\" />");
             // fixalong is passthrough-only, so Meta lets it run without the boundary:
             // you can walk anywhere without the "leaving your boundary" warning.
             EnsureManifestEntry("com.oculus.feature.BOUNDARYLESS_APP",
@@ -186,6 +192,19 @@ namespace Fixalong.Editor
             felix.body = body;
             felix.caption = BuildCaption(root.transform);
             return felix;
+        }
+
+        static PartLabels BuildPartLabels(PassthroughCameraAccess cameraAccess)
+        {
+            var labelsObject = new GameObject("Part Labels");
+            var labels = labelsObject.AddComponent<PartLabels>();
+            labels.cameraAccess = cameraAccess;
+            labels.raycaster = labelsObject.AddComponent<EnvironmentRaycastManager>();
+            labels.dotMaterial = MakeMaterial("Label Dot", Color.white, glow: true);
+            labels.arrowMaterial = MakeMaterial("Label Arrow", new Color(1f, 0.55f, 0.2f), glow: true);
+            labels.arrowMaterial.SetFloat("_Cull", 0f); // both sides, so the arrow never vanishes
+            EditorUtility.SetDirty(labels.arrowMaterial);
+            return labels;
         }
 
         static Text BuildCaption(Transform parent)

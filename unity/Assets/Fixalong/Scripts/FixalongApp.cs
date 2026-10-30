@@ -17,11 +17,13 @@ namespace Fixalong
     {
         const string CameraPermission = "horizonos.permission.HEADSET_CAMERA";
         const string MicPermission = "android.permission.RECORD_AUDIO";
+        const string SpatialDataPermission = "com.oculus.permission.USE_SCENE"; // for the depth raycast
 
         public FelixLink link;
         public Felix felix;
         public CameraSnap cameraSnap;
         public MicStream mic;
+        public PartLabels labels;
 
         const int MaxQueuedLogs = 200;
 
@@ -48,6 +50,9 @@ namespace Fixalong
             public string audio;
             public int sample_rate;
             public float follow_up;
+            public string photo;
+            public PartLabels.Part[] parts;
+            public string[] focus;
         }
 
         void OnEnable()
@@ -94,7 +99,7 @@ namespace Fixalong
         {
 #if UNITY_ANDROID && !UNITY_EDITOR
             var needed = new List<string>();
-            foreach (var permission in new[] { CameraPermission, MicPermission })
+            foreach (var permission in new[] { CameraPermission, MicPermission, SpatialDataPermission })
             {
                 if (Permission.HasUserAuthorizedPermission(permission)) OnPermissionGranted(permission);
                 else needed.Add(permission);
@@ -120,9 +125,13 @@ namespace Fixalong
         void OnPermissionDenied(string permission)
         {
             Debug.LogWarning($"[fixalong] permission denied: {permission}");
-            felix.ShowCaption(permission == CameraPermission
-                ? "I need camera access to see. You can allow it in the headset's app settings."
-                : "I need the microphone to hear you. You can allow it in the headset's app settings.");
+            var need = permission switch
+            {
+                CameraPermission => "camera access to see",
+                MicPermission => "the microphone to hear you",
+                _ => "spatial data to point at parts",
+            };
+            felix.ShowCaption($"I need {need}. You can allow it in the headset's app settings.");
         }
 
         void OnConnected() => link.Send(JsonUtility.ToJson(new Outgoing
@@ -151,6 +160,13 @@ namespace Fixalong
                     break;
                 case "say":
                     felix.Say(message.text, DecodePcm16(message.audio), message.sample_rate, message.follow_up);
+                    labels.Focus(message.focus);
+                    break;
+                case "labels":
+                    labels.Show(message.photo, message.parts);
+                    break;
+                case "focus":
+                    labels.Focus(message.focus);
                     break;
                 default:
                     Debug.LogWarning($"[fixalong] unknown message type '{message.type}'");
@@ -164,7 +180,11 @@ namespace Fixalong
         {
             var jpeg = cameraSnap.TakeJpeg();
             if (jpeg == null) Debug.LogWarning("[fixalong] Felix asked for a photo, but the camera isn't ready");
-            else Debug.Log($"[fixalong] sending Felix a {jpeg.Length / 1024} KB photo");
+            else
+            {
+                Debug.Log($"[fixalong] sending Felix a {jpeg.Length / 1024} KB photo");
+                labels.RememberPhoto(id, cameraSnap.LastPose);
+            }
             link.Send(JsonUtility.ToJson(new Outgoing
             {
                 type = "photo",

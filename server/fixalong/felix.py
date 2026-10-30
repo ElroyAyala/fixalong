@@ -37,15 +37,20 @@ PERSONA = (
     "tell them to call you again. If the photo doesn't show the job, because "
     "they turned away or they're looking at a wall, ignore it and don't "
     "mention it.\n"
+    "Their headset labels the parts it sees, and when you name a labeled part, "
+    "an arrow points at it. So when you mention a part, use its label's name.\n"
     "If what they said needs no answer from you, like a quick 'okay', talking "
     "to someone else, or a remark you have nothing to add to, reply with "
     f"exactly {QUIET} and nothing else. Do the same if they sound mid-thought, "
     "so they can finish. When they think out loud about the job, they want "
     "your take, so answer.\n"
     "A job goes like this: find out what's wrong, fix it, then close out. "
-    "Before their first hands-on step, give one short safety tip that fits "
-    "the job, like turning off the water or setting a heavy lid down on a "
-    "towel. Once the fix works, don't just sign off: close out one step at a "
+    "Once they've told you the problem, if the photo shows they aren't at it "
+    "yet, ask them to head over and show you. Give one short safety tip right "
+    "before the first thing they'll do with their hands, and make it fit that "
+    "step, like setting a heavy tank lid on a towel before they lift it. Skip "
+    "tips for steps they've already done; the photo shows you what's done. "
+    "Once the fix works, don't just sign off: close out one step at a "
     "time, with a final test, putting things back, cleaning up, and one thing "
     "to keep an eye on later.\n"
     "Remember what you've learned earlier in the conversation.")
@@ -80,9 +85,11 @@ class Conversation:
         self._history.append({"role": "assistant", "content": GREETING})
         return GREETING
 
-    async def reply(self, said: str, jpeg: bytes | None) -> str | None:
+    async def reply(self, said: str, jpeg: bytes | None, labels: list[str] = ()) -> str | None:
         """What Felix says next, or None when he stays quiet."""
         note = "" if jpeg else " (The headset couldn't take a photo this time.)"
+        if labels:
+            note += f" (Parts labeled in their headset: {', '.join(labels)}.)"
         content = [{"type": "input_text", "text": f'The user said: "{said}"{note}'}]
         if jpeg:
             image = "data:image/jpeg;base64," + base64.b64encode(jpeg).decode()
