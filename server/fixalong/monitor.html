@@ -41,7 +41,7 @@
   .k-connected, .k-hello { border-left-color: var(--ok); }
   .k-disconnected { border-left-color: var(--bad); }
   .k-photo { border-left-color: var(--info); }
-  .k-felix_says { border-left-color: var(--felix); }
+  .k-felix_says, .k-felix_quiet { border-left-color: var(--felix); }
   .k-error { border-left-color: var(--bad); }
   .k-headset_log { padding: 6px 12px; }
   .felix { font-size: 16px; }
@@ -54,6 +54,14 @@
          padding: 2px 6px; border-radius: 4px; white-space: pre-wrap; }
   code.warning { color: var(--warn); }
   code.error, code.exception, code.assert { color: var(--bad); }
+  .k-heard { border-left-color: var(--text); }
+  .k-heard.not-for-felix { opacity: 0.6; border-left-color: var(--line); }
+  .you::before { content: "You: "; font-weight: 600; }
+  #hearing { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+             max-width: min(860px, calc(100% - 32px)); padding: 8px 14px; border-radius: 999px;
+             background: var(--panel); border: 1px solid var(--line); color: var(--dim);
+             font-size: 14px; box-shadow: 0 2px 10px rgb(0 0 0 / 0.12); }
+  #hearing:empty { display: none; }
   .divider { margin: 18px 0 6px; color: var(--dim); font-size: 13px; text-align: center; }
   .empty { color: var(--dim); text-align: center; margin-top: 60px; }
 </style>
@@ -68,9 +76,12 @@
   </label>
 </header>
 <main id="timeline"></main>
+<div id="hearing" aria-live="polite"></div>
 
 <script>
 const timeline = document.getElementById("timeline");
+const hearing = document.getElementById("hearing");
+let hearingTimer = null;
 const picker = document.getElementById("session");
 const feedPill = document.getElementById("feed");
 const headsetPill = document.getElementById("headset");
@@ -90,7 +101,15 @@ function setPill(pill, label, state) {
   pill.className = "pill" + (state === true ? " on" : state === false ? " off" : "");
 }
 
+// Partial transcripts update one floating caption instead of adding rows.
+function showHearing(text) {
+  hearing.textContent = "Hearing: " + text;
+  clearTimeout(hearingTimer);
+  hearingTimer = setTimeout(() => (hearing.textContent = ""), 4000);
+}
+
 function render(session, e) {
+  if (e.kind === "hearing") return showHearing(e.text);
   timeline.querySelector(".empty")?.remove();
   const nearBottom = innerHeight + scrollY >= document.body.scrollHeight - 80;
   const row = el("div", "row k-" + e.kind);
@@ -116,9 +135,29 @@ function render(session, e) {
       img.src = link.href;
       img.alt = "Photo from the headset";
       link.append(img);
-      body.append(el("div", "label", `Photo ${e.file} · ${e.kb} KB`), link);
+      const reason = e.reason === "pinch" ? " · you pinched" : "";  // pinches only in early sessions
+      body.append(el("div", "label", `Photo ${e.file} · ${e.kb} KB${reason}`), link);
       break;
     }
+    case "heard":
+      hearing.textContent = "";
+      if (!e.for_felix) row.classList.add("not-for-felix");
+      body.append(el("div", "you", e.text),
+                  el("div", "meta", e.for_felix ? "for Felix" : "not for Felix (no name, conversation closed)"));
+      break;
+    case "rethink":
+      body.append(el("span", "dim", "You said more before Felix answered, so he started over with all of it"));
+      break;
+    case "felix_quiet":
+      body.append(el("div", "felix dim", "(stays quiet)"),
+                  el("div", "meta", "thought " + secs(e.think_ms)));
+      break;
+    case "busy":
+      body.append(el("span", "dim", `Ignored a ${e.ignored} while Felix was still answering`));
+      break;
+    case "photo_timeout":
+      body.append(el("span", "dim", "The headset didn't send a photo in time; Felix answered without one"));
+      break;
     case "felix_says": {
       const timing = [];
       if (e.think_ms != null) timing.push("thought " + secs(e.think_ms));

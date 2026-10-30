@@ -11,7 +11,8 @@ namespace Fixalong
 {
     /// <summary>
     /// The headset's one connection to the fixalong server. Messages are JSON
-    /// text frames; incoming ones are handed out on the main thread. Keeps
+    /// text frames and mic audio is binary; incoming messages are handed out on
+    /// the main thread. One send loop keeps outgoing frames in order. Keeps
     /// retrying, so the server can start before or after the app, and the
     /// link comes back after walking out of Wi-Fi range.
     /// </summary>
@@ -30,7 +31,8 @@ namespace Fixalong
         public bool IsConnected => _socket is { State: WebSocketState.Open };
 
         readonly ConcurrentQueue<string> _inbox = new();
-        readonly SemaphoreSlim _sendLock = new(1, 1);
+        readonly ConcurrentQueue<(byte[] data, WebSocketMessageType type)> _outbox = new();
+        readonly SemaphoreSlim _outboxReady = new(0);
         CancellationTokenSource _cts;
         ClientWebSocket _socket;
         bool _justConnected;
@@ -58,28 +60,35 @@ namespace Fixalong
                 MessageReceived?.Invoke(message);
         }
 
-        public async void Send(string json)
+        public void Send(string json)
         {
-            var socket = _socket;
-            if (socket is not { State: WebSocketState.Open })
+            if (!IsConnected)
             {
                 Debug.LogWarning("[fixalong] not connected; message dropped");
                 return;
             }
-            await _sendLock.WaitAsync();
-            try
+            Post(Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text);
+        }
+
+        /// <summary>Mic audio. Dropped quietly while disconnected.</summary>
+        public void SendBinary(byte[] data)
+        {
+            if (IsConnected) Post(data, WebSocketMessageType.Binary);
+        }
+
+        void Post(byte[] data, WebSocketMessageType type)
+        {
+            _outbox.Enqueue((data, type));
+            _outboxReady.Release();
+        }
+
+        async Task SendLoopAsync(ClientWebSocket socket, CancellationToken ct)
+        {
+            while (socket.State == WebSocketState.Open)
             {
-                var bytes = Encoding.UTF8.GetBytes(json);
-                await socket.SendAsync(new ArraySegment<byte>(bytes),
-                    WebSocketMessageType.Text, true, _cts.Token);
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning($"[fixalong] send failed: {e.Message}");
-            }
-            finally
-            {
-                _sendLock.Release();
+                await _outboxReady.WaitAsync(ct);
+                if (!_outbox.TryDequeue(out var frame)) continue;
+                await socket.SendAsync(new ArraySegment<byte>(frame.data), frame.type, true, ct);
             }
         }
 
@@ -103,13 +112,27 @@ namespace Fixalong
                         Debug.Log($"[fixalong] connected to {url}");
                         next = Array.IndexOf(serverUrls, url); // after a drop, retry this address first
                         _justConnected = true;
-                        await ReceiveAsync(socket, ct);
+                        using (var connection = CancellationTokenSource.CreateLinkedTokenSource(ct))
+                        {
+                            var sending = SendLoopAsync(socket, connection.Token);
+                            try
+                            {
+                                await ReceiveAsync(socket, ct);
+                            }
+                            finally
+                            {
+                                connection.Cancel();
+                                try { await sending; }
+                                catch (Exception) { /* ends with the connection */ }
+                            }
+                        }
                     }
                     catch (Exception e) when (!ct.IsCancellationRequested)
                     {
                         Debug.LogWarning($"[fixalong] {url}: {e.Message}");
                     }
                     _socket = null;
+                    while (_outbox.TryDequeue(out _)) { } // stale audio isn't worth sending later
                 }
                 try { await Task.Delay(1000, ct); }
                 catch (OperationCanceledException) { }

@@ -18,4 +18,5 @@
   <horizonos:uses-horizonos-sdk horizonos:minSdkVersion="60" horizonos:targetSdkVersion="207" />
   <uses-permission android:name="horizonos.permission.HEADSET_CAMERA" />
   <uses-feature android:name="com.oculus.feature.BOUNDARYLESS_APP" android:required="true" />
+  <uses-permission android:name="android.permission.RECORD_AUDIO" />
 </manifest>

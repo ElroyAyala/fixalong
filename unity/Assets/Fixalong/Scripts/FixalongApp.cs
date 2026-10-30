@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using UnityEngine;
 #if UNITY_ANDROID && !UNITY_EDITOR
 using UnityEngine.Android;
@@ -8,31 +9,29 @@ using UnityEngine.Android;
 namespace Fixalong
 {
     /// <summary>
-    /// The thin headset loop: connect to the server, let Felix greet you, and
-    /// send Felix a photo on each pinch. His words and voice come back from
-    /// the server; nothing is decided on the headset.
+    /// The headset side of fixalong: connect to the server, stream the mic,
+    /// and take a photo whenever Felix asks for one. Felix's words and voice
+    /// come back from the server; nothing is decided on the headset.
     /// </summary>
     public class FixalongApp : MonoBehaviour
     {
         const string CameraPermission = "horizonos.permission.HEADSET_CAMERA";
+        const string MicPermission = "android.permission.RECORD_AUDIO";
 
         public FelixLink link;
         public Felix felix;
         public CameraSnap cameraSnap;
-        public PinchInput pinch;
-
-        [Tooltip("Stop waiting for Felix's answer after this many seconds.")]
-        public float answerTimeout = 30f;
+        public MicStream mic;
 
         const int MaxQueuedLogs = 200;
 
-        float _waitingUntil;
         readonly ConcurrentQueue<Outgoing> _logs = new();
 
         [Serializable]
         class Outgoing
         {
             public string type;
+            public string id;
             public string image;
             public string level;
             public string text;
@@ -44,16 +43,17 @@ namespace Fixalong
         class Incoming
         {
             public string type;
+            public string id;
             public string text;
             public string audio;
             public int sample_rate;
+            public float follow_up;
         }
 
         void OnEnable()
         {
             link.Connected += OnConnected;
             link.MessageReceived += OnMessage;
-            pinch.Pinched += OnPinch;
             Application.logMessageReceivedThreaded += OnLog;
         }
 
@@ -61,7 +61,6 @@ namespace Fixalong
         {
             link.Connected -= OnConnected;
             link.MessageReceived -= OnMessage;
-            pinch.Pinched -= OnPinch;
             Application.logMessageReceivedThreaded -= OnLog;
         }
 
@@ -87,34 +86,43 @@ namespace Fixalong
         void Start()
         {
             felix.ShowCaption("Connecting to the fixalong server...");
-            RequestCamera();
+            RequestPermissions();
         }
 
         // Permissions are requested here and nowhere else, as Meta recommends.
-        void RequestCamera()
+        void RequestPermissions()
         {
 #if UNITY_ANDROID && !UNITY_EDITOR
-            if (Permission.HasUserAuthorizedPermission(CameraPermission))
+            var needed = new List<string>();
+            foreach (var permission in new[] { CameraPermission, MicPermission })
             {
-                Debug.Log("[fixalong] camera permission already granted");
-                cameraSnap.StartCamera();
-                return;
+                if (Permission.HasUserAuthorizedPermission(permission)) OnPermissionGranted(permission);
+                else needed.Add(permission);
             }
+            if (needed.Count == 0) return;
             var callbacks = new PermissionCallbacks();
-            callbacks.PermissionGranted += _ =>
-            {
-                Debug.Log("[fixalong] camera permission granted");
-                cameraSnap.StartCamera();
-            };
-            callbacks.PermissionDenied += _ =>
-            {
-                Debug.LogWarning("[fixalong] camera permission denied");
-                felix.ShowCaption("I need camera access to see. You can allow it in the headset's app settings.");
-            };
-            Permission.RequestUserPermission(CameraPermission, callbacks);
+            callbacks.PermissionGranted += OnPermissionGranted;
+            callbacks.PermissionDenied += OnPermissionDenied;
+            Permission.RequestUserPermissions(needed.ToArray(), callbacks);
 #else
-            cameraSnap.StartCamera();
+            OnPermissionGranted(CameraPermission);
+            OnPermissionGranted(MicPermission);
 #endif
+        }
+
+        void OnPermissionGranted(string permission)
+        {
+            Debug.Log($"[fixalong] permission granted: {permission}");
+            if (permission == CameraPermission) cameraSnap.StartCamera();
+            else if (permission == MicPermission) mic.StartMic();
+        }
+
+        void OnPermissionDenied(string permission)
+        {
+            Debug.LogWarning($"[fixalong] permission denied: {permission}");
+            felix.ShowCaption(permission == CameraPermission
+                ? "I need camera access to see. You can allow it in the headset's app settings."
+                : "I need the microphone to hear you. You can allow it in the headset's app settings.");
         }
 
         void OnConnected() => link.Send(JsonUtility.ToJson(new Outgoing
@@ -124,47 +132,45 @@ namespace Fixalong
             device = SystemInfo.deviceModel,
         }));
 
-        void OnPinch()
-        {
-            if (Time.time < _waitingUntil)
-            {
-                Debug.Log("[fixalong] pinch ignored: still waiting on Felix's last answer");
-                return;
-            }
-            if (!link.IsConnected)
-            {
-                felix.ShowCaption("I can't reach the fixalong server yet.");
-                return;
-            }
-            var jpeg = cameraSnap.TakeJpeg();
-            if (jpeg == null)
-            {
-                Debug.LogWarning("[fixalong] pinch, but the camera isn't ready");
-                felix.ShowCaption("My camera isn't ready yet.");
-                return;
-            }
-            Debug.Log($"[fixalong] pinch: sending a {jpeg.Length / 1024} KB photo");
-            _waitingUntil = Time.time + answerTimeout;
-            felix.ShowCaption("Snap! Let me look...");
-            link.Send(JsonUtility.ToJson(new Outgoing { type = "photo", image = Convert.ToBase64String(jpeg) }));
-        }
-
         void OnMessage(string json)
         {
             var message = JsonUtility.FromJson<Incoming>(json);
             switch (message.type)
             {
-                case "status":
-                    felix.ShowCaption(message.text);
+                case "snap":
+                    SendPhoto(message.id);
+                    break;
+                case "listening":
+                    felix.ShowHearing(message.text);
+                    break;
+                case "heard":
+                    felix.ShowCaption($"“{message.text}”\n<i>Thinking…</i>");
+                    break;
+                case "quiet":
+                    felix.KeepListening(message.follow_up);
                     break;
                 case "say":
-                    _waitingUntil = 0f;
-                    felix.Say(message.text, DecodePcm16(message.audio), message.sample_rate);
+                    felix.Say(message.text, DecodePcm16(message.audio), message.sample_rate, message.follow_up);
                     break;
                 default:
                     Debug.LogWarning($"[fixalong] unknown message type '{message.type}'");
                     break;
             }
+        }
+
+        // Felix asked for a photo because you spoke to him. An empty image tells
+        // the server the camera wasn't ready, so he answers without one.
+        void SendPhoto(string id)
+        {
+            var jpeg = cameraSnap.TakeJpeg();
+            if (jpeg == null) Debug.LogWarning("[fixalong] Felix asked for a photo, but the camera isn't ready");
+            else Debug.Log($"[fixalong] sending Felix a {jpeg.Length / 1024} KB photo");
+            link.Send(JsonUtility.ToJson(new Outgoing
+            {
+                type = "photo",
+                id = id,
+                image = jpeg == null ? "" : Convert.ToBase64String(jpeg),
+            }));
         }
 
         static float[] DecodePcm16(string base64)

@@ -4,6 +4,7 @@
         events.jsonl   one JSON object per line: t (seconds since start), at, kind, ...
         photos/        every headset photo
         felix/         every line Felix speaks, as WAV
+        mic.wav        everything the headset mic heard (silence while Felix talks)
 
 Every recorded event is also pushed to the live view.
 """
@@ -51,6 +52,7 @@ class Session:
         self._events = (self.dir / "events.jsonl").open("a", encoding="utf-8")
         self._start = time.monotonic()
         self._files = 0
+        self._mic: wave.Wave_write | None = None
 
     def event(self, kind: str, **data) -> None:
         record = {"t": round(time.monotonic() - self._start, 3),
@@ -59,6 +61,19 @@ class Session:
         self._events.write(json.dumps(record) + "\n")
         self._events.flush()
         monitor.publish({"session": self.id, "event": record})
+
+    def live(self, kind: str, **data) -> None:
+        """An event for the live view only, not the record (like partial transcripts)."""
+        monitor.publish({"session": self.id, "event": {
+            "t": round(time.monotonic() - self._start, 3), "kind": kind, **data}})
+
+    def record_mic(self, pcm: bytes) -> None:
+        if self._mic is None:
+            self._mic = wave.open(str(self.dir / "mic.wav"), "wb")
+            self._mic.setnchannels(1)
+            self._mic.setsampwidth(2)
+            self._mic.setframerate(config.MIC_SAMPLE_RATE)
+        self._mic.writeframes(pcm)
 
     def save_photo(self, jpeg: bytes) -> str:
         name = f"photos/{self._next():03d}.jpg"
@@ -75,6 +90,8 @@ class Session:
         return name
 
     def close(self) -> None:
+        if self._mic is not None:
+            self._mic.close()
         self._events.close()
 
     def _next(self) -> int:

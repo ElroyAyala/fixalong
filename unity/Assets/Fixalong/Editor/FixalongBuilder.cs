@@ -47,7 +47,7 @@ namespace Fixalong.Editor
             light.type = LightType.Directional;
             light.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
 
-            BuildCameraRig(out var leftHand, out var rightHand);
+            BuildCameraRig();
             var felix = BuildFelix();
 
             var cameraObject = new GameObject("Passthrough Camera");
@@ -60,14 +60,14 @@ namespace Fixalong.Editor
             var appObject = new GameObject("fixalong");
             var link = appObject.AddComponent<FelixLink>();
             link.serverUrls = ServerUrls();
-            var pinch = appObject.AddComponent<PinchInput>();
-            pinch.leftHand = leftHand;
-            pinch.rightHand = rightHand;
+            var mic = appObject.AddComponent<MicStream>();
+            mic.link = link;
+            mic.felixVoice = felix.GetComponent<AudioSource>();
             var app = appObject.AddComponent<FixalongApp>();
             app.link = link;
             app.felix = felix;
             app.cameraSnap = cameraSnap;
-            app.pinch = pinch;
+            app.mic = mic;
 
             EnsureFolder(Path.GetDirectoryName(ScenePath));
             EditorSceneManager.SaveScene(scene, ScenePath);
@@ -106,6 +106,8 @@ namespace Fixalong.Editor
             // Meta's camera docs say Unity 6 manifests need this added by hand.
             EnsureManifestEntry("horizonos.permission.HEADSET_CAMERA",
                 "<uses-permission android:name=\"horizonos.permission.HEADSET_CAMERA\" />");
+            EnsureManifestEntry("android.permission.RECORD_AUDIO",
+                "<uses-permission android:name=\"android.permission.RECORD_AUDIO\" />");
             // fixalong is passthrough-only, so Meta lets it run without the boundary:
             // you can walk anywhere without the "leaving your boundary" warning.
             EnsureManifestEntry("com.oculus.feature.BOUNDARYLESS_APP",
@@ -149,7 +151,7 @@ namespace Fixalong.Editor
             return null;
         }
 
-        static void BuildCameraRig(out OVRHand leftHand, out OVRHand rightHand)
+        static void BuildCameraRig()
         {
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(CameraRigPrefab);
             var rig = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
@@ -163,20 +165,6 @@ namespace Fixalong.Editor
             var eye = tracking.Find("CenterEyeAnchor").GetComponent<Camera>();
             eye.clearFlags = CameraClearFlags.SolidColor;
             eye.backgroundColor = Color.clear; // transparent, so passthrough shows through
-
-            // Your real hands show through passthrough, so these only track pinches.
-            leftHand = AddHand(tracking.Find("LeftHandAnchor"), OVRHand.Hand.HandLeft);
-            rightHand = AddHand(tracking.Find("RightHandAnchor"), OVRHand.Hand.HandRight);
-        }
-
-        static OVRHand AddHand(Transform anchor, OVRHand.Hand which)
-        {
-            var hand = new GameObject(which.ToString()).AddComponent<OVRHand>();
-            hand.transform.SetParent(anchor, false);
-            var serialized = new SerializedObject(hand);
-            serialized.FindProperty("HandType").intValue = (int)which;
-            serialized.ApplyModifiedPropertiesWithoutUndo();
-            return hand;
         }
 
         static Felix BuildFelix()
@@ -202,23 +190,34 @@ namespace Fixalong.Editor
 
         static Text BuildCaption(Transform parent)
         {
-            var canvasObject = new GameObject("Caption", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(Image));
+            var canvasObject = new GameObject("Caption", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
             canvasObject.transform.SetParent(parent, false);
             canvasObject.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
             canvasObject.GetComponent<CanvasScaler>().dynamicPixelsPerUnit = 3f;
-            canvasObject.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
-            var panel = (RectTransform)canvasObject.transform;
-            panel.sizeDelta = new Vector2(420f, 150f);
-            panel.localPosition = new Vector3(0f, -0.17f, 0f);
-            panel.localScale = Vector3.one * 0.001f; // 420 units = 0.42 m
+            var canvas = (RectTransform)canvasObject.transform;
+            canvas.pivot = new Vector2(0.5f, 1f);
+            canvas.sizeDelta = new Vector2(480f, 400f);
+            canvas.localPosition = new Vector3(0f, -0.09f, 0f); // top edge just below Felix
+            canvas.localScale = Vector3.one * 0.001f; // 480 units = 0.48 m
+
+            // The dark backing grows downward to fit however much Felix says.
+            var panelObject = new GameObject("Panel", typeof(RectTransform), typeof(Image),
+                typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+            panelObject.transform.SetParent(canvasObject.transform, false);
+            panelObject.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
+            var panel = (RectTransform)panelObject.transform;
+            panel.anchorMin = panel.anchorMax = panel.pivot = new Vector2(0.5f, 1f);
+            panel.sizeDelta = new Vector2(480f, 0f);
+            panel.anchoredPosition = Vector2.zero;
+            var layout = panelObject.GetComponent<VerticalLayoutGroup>();
+            layout.padding = new RectOffset(16, 16, 10, 10);
+            layout.childControlWidth = layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+            panelObject.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             var textObject = new GameObject("Text", typeof(RectTransform), typeof(Text));
-            textObject.transform.SetParent(canvasObject.transform, false);
-            var textRect = (RectTransform)textObject.transform;
-            textRect.anchorMin = Vector2.zero;
-            textRect.anchorMax = Vector2.one;
-            textRect.offsetMin = new Vector2(16f, 10f);
-            textRect.offsetMax = new Vector2(-16f, -10f);
+            textObject.transform.SetParent(panelObject.transform, false);
             var text = textObject.GetComponent<Text>();
             text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             text.fontSize = 26;

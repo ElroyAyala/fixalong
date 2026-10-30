@@ -12,7 +12,8 @@ async def speak(text: str) -> bytes:
         f"/text-to-speech/{config.FELIX_VOICE_ID}",
         params={"output_format": f"pcm_{config.VOICE_SAMPLE_RATE}"},
         headers={"xi-api-key": config.ELEVENLABS_API_KEY},
-        json={"text": text, "model_id": config.ELEVENLABS_MODEL},
+        json={"text": text, "model_id": config.ELEVENLABS_MODEL,
+              "voice_settings": config.VOICE_SETTINGS},
     )
     response.raise_for_status()
     return response.content

@@ -6,7 +6,8 @@ namespace Fixalong
     /// <summary>
     /// Placeholder Felix: a floating orb with eyes. He stays beside your line
     /// of sight, drifting back when you look away, turns to face you, and
-    /// pulses while he talks. His words show as a caption under him.
+    /// pulses while he talks. His caption shows what he says, what he's
+    /// hearing, and when he's still listening for a follow-up.
     /// </summary>
     [RequireComponent(typeof(AudioSource))]
     public class Felix : MonoBehaviour
@@ -31,6 +32,12 @@ namespace Fixalong
         bool _returning;
         readonly float[] _voiceSamples = new float[256];
 
+        // The follow-up window: after he finishes talking, he listens without his name.
+        string _spoken = "";
+        float _listenFrom;
+        float _listenUntil;
+        bool _showingListening;
+
         void Awake()
         {
             _audio = GetComponent<AudioSource>();
@@ -40,18 +47,62 @@ namespace Fixalong
 
         public void ShowCaption(string text)
         {
+            _listenUntil = 0f;
+            _showingListening = false;
+            SetCaption(text);
+        }
+
+        /// <summary>What Felix is hearing right now, while you talk to him.</summary>
+        public void ShowHearing(string text) => ShowCaption($"<i>{text}…</i>");
+
+        public void Say(string text, float[] samples, int sampleRate, float followUpSeconds = 0f)
+        {
+            _spoken = text;
+            SetCaption(text);
+            var speaking = 0f;
+            if (samples != null && samples.Length > 0)
+            {
+                var clip = AudioClip.Create("Felix", samples.Length, 1, sampleRate, false);
+                clip.SetData(samples, 0);
+                if (_audio.clip != null) Destroy(_audio.clip);
+                _audio.clip = clip;
+                _audio.Play();
+                speaking = clip.length;
+            }
+            _listenFrom = Time.time + speaking;
+            _listenUntil = followUpSeconds > 0f ? _listenFrom + followUpSeconds : 0f;
+            _showingListening = false;
+        }
+
+        /// <summary>Felix chose not to answer: show his last words and keep listening.</summary>
+        public void KeepListening(float seconds)
+        {
+            SetCaption(_spoken);
+            _listenFrom = Time.time;
+            _listenUntil = seconds > 0f ? _listenFrom + seconds : 0f;
+            _showingListening = false;
+        }
+
+        void SetCaption(string text)
+        {
             if (caption != null) caption.text = text;
         }
 
-        public void Say(string text, float[] samples, int sampleRate)
+        void UpdateListeningHint()
         {
-            ShowCaption(text);
-            if (samples == null || samples.Length == 0) return;
-            var clip = AudioClip.Create("Felix", samples.Length, 1, sampleRate, false);
-            clip.SetData(samples, 0);
-            if (_audio.clip != null) Destroy(_audio.clip);
-            _audio.clip = clip;
-            _audio.Play();
+            if (_listenUntil <= 0f || _audio.isPlaying || Time.time < _listenFrom) return;
+            if (Time.time < _listenUntil)
+            {
+                if (_showingListening) return;
+                SetCaption(_spoken + "\n<i>I'm listening…</i>");
+                _showingListening = true;
+            }
+            else
+            {
+                SetCaption(_spoken);
+                _listenUntil = 0f;
+                _showingListening = false;
+            }
         }
 
         void LateUpdate()
@@ -83,6 +134,7 @@ namespace Fixalong
 
             body.localPosition = _bodyRestPosition + Vector3.up * (Mathf.Sin(Time.time * 2f) * 0.01f);
             body.localScale = Vector3.one * (_bodyRestScale * (1f + VoiceLevel() * 0.5f));
+            UpdateListeningHint();
         }
 
         Vector3 HomePosition()
