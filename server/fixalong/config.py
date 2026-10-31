@@ -41,6 +41,11 @@ PHOTO_TIMEOUT_SECONDS = 3  # how long to wait for the headset's photo on a call
 # headset takes a photo this often, for this long after he last spoke.
 WATCH_SECONDS = 3
 WATCH_FOR_SECONDS = 90
+# A countdown that ran out shows "done" over its part this long, then goes.
+PIN_DONE_SECONDS = 20
+# Hazard checks run at most this often, since the headset photographs every few seconds while
+# it watches.
+HAZARD_GAP_SECONDS = 6
 
 # Felix's voice (ElevenLabs). The voice ID isn't secret, so it lives here.
 ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "").strip()

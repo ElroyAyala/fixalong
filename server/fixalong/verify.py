@@ -25,7 +25,9 @@ PROMPT = (
     "{unseen} Reply with only JSON: "
     '{{"passed": true or false, "claimed": <true if their words say this specific thing is done '
     "or fine (like 'the lid's good'), or answer yes to the guide asking about it; false for a "
-    'question, or words about something else>,"contradicts": <true only if the photo plainly shows it is not done>, '
+    'question, or words about something else>,"contradicts": <true only if the photo shows '
+    "this thing and plainly shows it isn't done, like the lid still on the tank; a photo of "
+    "something else, or too dark to tell, never contradicts>, "
     '"seen": "<what you see that decides it, one sentence>", '
     '"correction": "<if not passed: the one thing to do next, in plain everyday words, '
     "describing the part by its look and place. They wear a headset, so say 'look at' or "
@@ -92,6 +94,18 @@ YES = re.compile(r"^\W*(yes|yeah|yep|yup|ya|correct|uh huh|i did|we did|sure did
 # Asking to check the current thing off themselves, as they can by pinching it on the checklist.
 CHECK_OFF = re.compile(r"\b(check (it|that|this) off|mark (it|that|this) (as )?(done|off|complete)|"
                        r"skip (it|that|this)( one| step)?|move on)\b", re.IGNORECASE)
+
+
+# Closing a caution sign: "got it" and the like once they've looked at it, or any words
+# about the sign itself.
+ACKNOWLEDGE = re.compile(r"\b(got it|gotcha|understood|noted|will do|copy that|roger|"
+                         r"i see (it|that)|okay|ok)\b", re.IGNORECASE)
+ABOUT_SIGN = re.compile(r"\b(sign|caution|warning)\b", re.IGNORECASE)
+
+
+def acknowledges(text: str, looked: bool) -> bool:
+    """Whether they acknowledged a caution sign; looked is whether they've looked at it."""
+    return bool(ABOUT_SIGN.search(text) or looked and ACKNOWLEDGE.search(text))
 
 
 def says_done(text: str) -> bool:

@@ -61,9 +61,18 @@ namespace Fixalong.Editor
             var labels = BuildPartLabels(cameraAccess);
             labels.cues = cues;
             felix.labels = labels;
+            felix.cues = cues;
             var checklist = new GameObject("Checklist").AddComponent<Checklist>();
             checklist.cues = cues;
             checklist.hands = hands;
+            checklist.labels = labels;
+            var pins = new GameObject("Pins").AddComponent<Pins>();
+            pins.labels = labels;
+            var cautions = new GameObject("Cautions").AddComponent<Cautions>();
+            cautions.labels = labels;
+            cautions.cues = cues;
+            cautions.hands = hands;
+            pins.cues = cues;
 
             var appObject = new GameObject("fixalong");
             var link = appObject.AddComponent<FelixLink>();
@@ -78,6 +87,8 @@ namespace Fixalong.Editor
             app.mic = mic;
             app.labels = labels;
             app.checklist = checklist;
+            app.cautions = cautions;
+            app.pins = pins;
             app.cues = cues;
 
             EnsureFolder(Path.GetDirectoryName(ScenePath));

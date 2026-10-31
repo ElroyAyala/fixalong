@@ -215,6 +215,24 @@ function render(session, e) {
     case "filler":
       body.append(el("span", "dim", e.checking ? "Felix: “let me look” while he checks" : "Felix: “mm-hm” while he thinks"));
       break;
+    case "farewell":
+      body.append(el("b", null, "Felix said goodbye and headed off; the next “Felix” starts a new job"));
+      break;
+    case "countdown_done":
+      body.append(el("span", null, `Countdown “${e.text}” over the ${e.part} ran out`));
+      break;
+    case "hazards":
+      body.append(el("span", e.hazards.length ? null : "dim", e.hazards.length
+        ? `Caution sign in ${e.photo}: ` + e.hazards.map(h => `“${h.line}” (${h.name})`).join(", ")
+        : `No new hazards in ${e.photo} · ${secs(e.think_ms)}`));
+      break;
+    case "caution_seen":
+      body.append(el("span", "dim", `You looked at caution sign ${e.id}`));
+      break;
+    case "caution_acknowledged":
+      body.append(el("span", e.line ? null : "dim", e.line
+        ? `You acknowledged “${e.line}” (${e.how})` : `Caution sign ${e.id} was already closed`));
+      break;
     case "tapped":
       body.append(el("span", e.checked ? null : "dim", e.checked
         ? `You checked off “${e.checked}” on the checklist`

@@ -23,6 +23,7 @@ namespace Fixalong
         public Transform body;
         public Text caption;
         public PartLabels labels;
+        public Cues cues;
 
         [Header("Where he rides, relative to your view (meters: right, up, ahead)")]
         public Vector3 levelSpot = new(-0.3f, -0.1f, 0.8f);
@@ -54,6 +55,14 @@ namespace Fixalong
         public float lean = 0.02f;
         [Tooltip("Seconds at the end of his line when he looks at you: it's usually a question.")]
         public float askSeconds = 1.5f;
+
+        [Header("Coming and going")]
+        [Tooltip("How long he takes to fly off after a goodbye, or to come back when called.")]
+        public float leaveSeconds = 1.2f;
+        [Tooltip("How far he rises as he goes (meters).")]
+        public float leaveRise = 0.35f;
+        [Tooltip("How long the caption shows how to call him back once he's gone.")]
+        public float hintSeconds = 5f;
 
         [Header("Caption")]
         [Tooltip("Meters above where he rides that the caption's bottom edge sits.")]
@@ -92,7 +101,13 @@ namespace Fixalong
         string _spoken = "";
         float _listenFrom;
         float _listenUntil;
+        float _listenAtLeast; // he listens at least until then, like through a countdown
         bool _showingListening;
+
+        // After a goodbye: he goes once his last line ends, and comes back when called.
+        bool _away;
+        float _leftAt = -1f;
+        float _presence = 1f; // 1 here, 0 gone
 
         void Awake()
         {
@@ -138,10 +153,18 @@ namespace Fixalong
                 speaking = clip.length;
             }
             _listenFrom = Time.time + speaking;
-            _listenUntil = followUpSeconds > 0f ? _listenFrom + followUpSeconds : 0f;
+            _listenUntil = followUpSeconds > 0f ? Mathf.Max(_listenFrom + followUpSeconds, _listenAtLeast) : 0f;
             _showingListening = false;
             _saidAt = Time.time;
             _glanceWhenFocused = true;
+        }
+
+        /// <summary>Keep listening at least this long from now, like through a countdown.
+        /// The caption doesn't change.</summary>
+        public void ListenFor(float seconds)
+        {
+            _listenAtLeast = Mathf.Max(_listenAtLeast, Time.time + seconds);
+            if (_listenUntil > 0f) _listenUntil = Mathf.Max(_listenUntil, _listenAtLeast);
         }
 
         /// <summary>A quick "mm-hm" or "let me look" while he thinks: his voice, no caption.</summary>
@@ -162,12 +185,33 @@ namespace Fixalong
             _glanceWhenFocused = true;
         }
 
+        /// <summary>The job's done and he said goodbye: once he finishes talking, he rises
+        /// and shrinks away, and the caption says how to call him back.</summary>
+        public void Leave()
+        {
+            _away = true;
+            _leftAt = -1f;
+            _listenUntil = 0f; // he needs his name again
+            _listenAtLeast = 0f;
+            _showingListening = false;
+        }
+
+        /// <summary>You called him after a goodbye: he comes back down.</summary>
+        public void Return()
+        {
+            if (!_away) return;
+            _away = false;
+            _leftAt = -1f;
+            if (_captionRoot != null) _captionRoot.gameObject.SetActive(true);
+            if (cues != null) cues.Play(cues.woosh, transform.position);
+        }
+
         /// <summary>Felix chose not to answer: show his last words and keep listening.</summary>
         public void KeepListening(float seconds)
         {
             SetCaption(_spoken);
             _listenFrom = Time.time;
-            _listenUntil = seconds > 0f ? _listenFrom + seconds : 0f;
+            _listenUntil = seconds > 0f ? Mathf.Max(_listenFrom + seconds, _listenAtLeast) : 0f;
             _showingListening = false;
         }
 
@@ -210,7 +254,8 @@ namespace Fixalong
             // Where he rides with you; his caption stays here even when he's at the part.
             _spot = _follow.Step(_spot, ViewSpot.Home(_head, levelSpot, downSpot), eyePosition);
             UpdatePerch(hasFocus, part);
-            var target = _perched ? _perchSpot : _spot;
+            var shown = UpdatePresence();
+            var target = (_perched ? _perchSpot : _spot) + Vector3.up * ((1f - shown) * leaveRise);
             transform.position = _placed
                 ? Vector3.Lerp(transform.position, target, 1f - Mathf.Exp(-5f * Time.deltaTime))
                 : target;
@@ -230,10 +275,27 @@ namespace Fixalong
                                  + Vector3.up * (Mathf.Sin(Time.time * 2f) * 0.01f * _size);
             body.rotation = Quaternion.RotateTowards(body.rotation,
                 Quaternion.LookRotation(body.position - lookAt, Vector3.up), turnSpeed * Time.deltaTime);
-            body.localScale = Vector3.one * (_bodyRestScale * _size * (1f + VoiceLevel() * 0.5f));
+            body.localScale = Vector3.one * (_bodyRestScale * _size * shown * (1f + VoiceLevel() * 0.5f));
 
             PlaceCaption(eyePosition);
             UpdateListeningHint();
+        }
+
+        // How much of him shows (0-1, eased). After a goodbye he goes once his last line ends:
+        // a woosh, the caption says how to call him back, and then it clears too.
+        float UpdatePresence()
+        {
+            var going = _away && !_audio.isPlaying;
+            if (going && _leftAt < 0f)
+            {
+                _leftAt = Time.time;
+                SetCaption("<i>Say “Felix” when you need me.</i>");
+                if (cues != null) cues.Play(cues.woosh, transform.position);
+            }
+            if (going && Time.time - _leftAt > hintSeconds && _captionRoot != null)
+                _captionRoot.gameObject.SetActive(false);
+            _presence = Mathf.MoveTowards(_presence, going ? 0f : 1f, Time.deltaTime / leaveSeconds);
+            return Mathf.SmoothStep(0f, 1f, _presence);
         }
 
         // He goes to the part when you look at it, and comes back when you look away for a moment.

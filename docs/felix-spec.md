@@ -2,7 +2,7 @@
 
 How Felix runs a job, from the first question to the closeout. [plan.md](plan.md) holds the product decisions; this file is the behavior the agent loop must produce.
 
-The demo uses two domains: a running toilet (the main job) and flat-pack furniture assembly (the second job, specified here when it's built). The chirping smoke alarm below comes after the demo. Each domain supplies its own safety steps, refusals, parts, starting causes and proof.
+The demo uses two domains: a running toilet (the main job) and flat-pack furniture assembly (the second job, section 11). The chirping smoke alarm below comes after the demo. Each domain supplies its own safety steps, refusals, parts, starting causes and proof.
 
 ## 1. Intake
 
@@ -22,7 +22,7 @@ Before any step that puts hands inside the fixture, Felix gives the domain's saf
 **Toilet:**
 
 1. Lay a towel on the floor next to the toilet.
-2. Lift the tank lid with both hands and set it flat on the towel. Porcelain cracks if it's dropped or leaned against something. *Felix checks: the lid is on the towel.*
+2. Lift the tank lid with both hands and set it flat on the towel. Porcelain cracks if it's dropped or leaned against something. *Felix checks: the lid is off and set down safely. A view of the open tank counts, unless it shows the lid somewhere unsafe, like balanced on the bowl.*
 3. Before any part comes out: turn the shutoff valve behind the toilet clockwise until it stops, then flush and hold the handle down to empty the tank. *Felix checks: the tank stays empty.*
 
 **Smoke alarm:**
@@ -42,12 +42,12 @@ Felix says plainly why and recommends a professional. The user can't talk him pa
 
 The safety gate covers the repair. Cautions cover the user and their gear, at any point in the job. A wet headset is a dead headset, so it's better to warn than to assume they know, and calmly enough not to scare anyone.
 
-- Every photo is also checked for hazards. For the toilet: water near the headset, splashing when flushing with the lid off, a wet floor, cleaner tablets in the tank, and the lid leaned against the wall.
+- Every photo is also checked for hazards. For the toilet: an open tank of water close below the headset, splashing when flushing with the lid off, a cleaner tablet in the tank, and the lid leaned against the wall or balanced on the bowl. Water on the floor is a stop condition instead (section 2).
 - A new hazard gets an amber caution sign pinned near it in the room, with one short line written by the model: "Water nearby. Keep the headset clear."
-- The sign blinks until the user acknowledges it. Looking toward it opens the caution text (head direction, since Quest 3 has no eye tracking), and saying "got it" or tapping it closes it. Both work with wet or full hands.
+- The sign blinks until the user acknowledges it. Looking toward it opens the caution text (head direction, since Quest 3 has no eye tracking), and then saying "got it", or pointing at it and pinching, closes it. Both work with wet or full hands. Words about the sign itself ("I see the warning") close it even without a look.
 - Once it's acknowledged, Felix says it in his own words, calmly: "I noticed we're working near water. If anything starts spraying, step back and take the headset off first. You don't need it to turn the shutoff valve."
 - A caution doesn't stop the conversation, but a step in that area waits until it's acknowledged.
-- Each hazard shows once per session, unless it gets worse, like a drip turning into spray.
+- Each hazard shows once per job, unless it gets worse, like a drip turning into spray.
 
 ## 4. Look and label
 
@@ -124,7 +124,7 @@ When the user says they're done, or answers yes to Felix's question, a separate 
 
 The task is only complete when there's ground-truth proof:
 
-- **Toilet:** after the tank refills, the user confirms they no longer hear running water, and Felix checks by eye that the water sits below the top of the overflow tube with nothing spilling in. A clean dye test also counts.
+- **Toilet:** after a flush and the refill (about a minute, with a countdown over the fill valve), the user confirms they no longer hear water running. Only if the water level was a suspect does Felix also ask for a look that it sits below the top of the overflow tube. A clean dye test also counts.
 - **Smoke alarm:** the test button sounds the full alarm, and the user confirms the chirp has stopped.
 
 The user's confirmation is the ground truth. In testing, the headset's mic stripped background sound, so Felix listens too only when the mic picks the sound up.
@@ -141,6 +141,8 @@ It covers:
 - the verification proof (a reference to a frame or a clip of audio)
 - one prevention tip
 
+Then Felix asks if they're good to close up, with the finishing touches (for the toilet: set the tank lid back on with both hands, and put the towel away). He doesn't wait to see them done: when the user says they're good, he says a short goodbye ("Nice work today. Say Felix if you need me.") and heads off: he rises and shrinks away once he finishes talking, and the checklist, labels and pins clear. "Felix" brings him back for a new job. If the conversation simply ends after the fix, he heads off then too.
+
 ## 10. Session log
 
 Every session writes structured JSON to `server/logs/`:
@@ -155,3 +157,14 @@ Every session writes structured JSON to `server/logs/`:
 - timestamps
 
 This feeds the eval and the README numbers.
+
+## 11. Flat-pack furniture
+
+Building furniture from its paper manual runs the same loop without a cause to find: no causes, no probes, and no safety gate, since hands don't go inside anything. Cautions still apply.
+
+- **Intake:** what they're building, and the manual held up. If they haven't checked the parts, they lay the panels out and hold up each hardware bag, and Felix names what the first steps need.
+- **Steps from the manual:** Felix reads the page they hold up (or asks them to hold it closer and flatter) and gives its steps one at a time, naming parts by the manual's letters and by look: "the long side panel, marked B, with the row of holes facing up." The record keeps one page of steps at a time and takes the next page when those pass.
+- **What the checker catches:** what each step's picture shows. The common mistakes: a panel in backwards or upside down (its finished edge or pre-drilled holes facing the wrong way), a cam lock not turned all the way, the wrong screw from a look-alike bag, the back panel nailed on before the frame is square, and a drill on particleboard.
+- **Cautions:** a tall piece standing without its anti-tip strap, a heavy panel lifted alone, hardware on the floor where they kneel, and a power drill on particleboard.
+- **Proof:** the piece stands level and solid (a gentle push at a top corner doesn't make it rack), doors and drawers close evenly, and only the manual's spares are left over.
+- **Finishing up:** a tall piece gets strapped to the wall with its anti-tip kit, and the hex key goes somewhere they'll find it. The checklist's last title is "Built!"

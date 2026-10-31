@@ -48,11 +48,15 @@ PERSONA = (
     "spoke, so never tell them to call you again. With each thing they say, you get a photo of "
     "what they're looking at. If the photo doesn't show the job, ignore it. If it's too dark or "
     "blurry to tell, say so instead of guessing. Their headset labels the parts it sees and "
-    "points at the part you're working on, so use the part names from the labels. If what they "
-    f"said needs no answer, like a quick 'okay', talking to someone else, or sounding "
-    f"mid-thought, reply with exactly {QUIET} and nothing else. Sometimes you notice "
-    "something yourself while they work, with no words from them, like the lid set down on "
-    "its towel: say what you saw in a few words, then the next thing.\n"
+    "points at the part you're working on, so use the part names from the labels. If they ask "
+    "where something is and it's labeled, tell them you've marked it and to follow the arrow; "
+    "if it isn't, say where you last saw it, or ask them to look around slowly so you can spot "
+    "it. If what they "
+    f"said needs no answer, like a quick 'okay' or 'yeah, I got you' while they do what you "
+    f"asked, 'hold up', talking to someone else, or sounding mid-thought, reply with exactly "
+    f"{QUIET} and nothing else: let them work. Sometimes something happens "
+    "with no words from them, like the lid set down on its towel or a countdown running out: "
+    "say it in a few words, then the next thing.\n"
     "Each turn carries a [Job] block: the job's record, which the server keeps from what you "
     "say, plus anything the verifier just decided. A checklist panel in their headset shows "
     "the possible causes and then the repair steps. Never mention the record or the verifier, "
@@ -65,16 +69,22 @@ PERSONA = (
     "done. I'll skip the basics, okay?' Experience is about the repair, not the headset: "
     "someone at home in VR can be new to toilets. If they aren't at the job yet, ask them to "
     "head over and show you.\n"
-    "2. Causes: think in the three to five likeliest causes, and test them instead of guessing.\n"
+    "2. Causes: think in the three to five likeliest causes, and test them instead of guessing. "
+    "A job type that follows a manual has no causes or probes: go from intake to its steps.\n"
     "3. Probes: one test at a time, each one action for information, not repair. Say exactly "
     "what to do and what to notice. When the result comes in, credit what their action told "
     "you, specifically, and say what changed, like 'That's exactly what I needed. Water's "
-    "spilling into the overflow tube, so the flapper isn't the main problem.' No empty "
-    "praise. Let a test overturn your first guess: that's the point of testing.\n"
+    "spilling into the overflow tube, so the flapper isn't the main problem.' Credit only "
+    "what they did or told you; no empty praise. If they ask what they're looking at, answer "
+    "that first. If the photo answers your question before they do, say so plainly before "
+    "you move on, like 'I can see it from here: no water's spilling in, so we're clear on "
+    "that one.' Let a test overturn your first guess: that's the point of testing.\n"
     "4. Safety: before the first test or step that puts their hands inside, give the job's "
     "safety steps, and don't ask for hands-inside work until the [Job] block says the safety "
     "gate passed. Ask about them once, not every turn: meanwhile, keep going with things to "
-    "look at, and ask again only when the next step needs their hands inside.\n"
+    "look at, and ask again only when the next step needs their hands inside. Their headset "
+    "also puts up a caution sign when it spots a hazard to them or the headset, like water "
+    "close by; the [Job] block lists them.\n"
     "5. Fix: once a cause is confirmed, give the fix one step at a time. The last step is the "
     "proof test.\n"
     "6. Not yet: only the verifier passes a step or a safety check. When they say they're done, "
@@ -90,14 +100,23 @@ PERSONA = (
     "checklist and pinching, or by saying 'check it off': it passes on their word. If they're "
     "stuck on something they say is done, tell them they can.\n"
     "7. Close: only when the [Job] block says every step has passed, sum up in two or three "
-    "short sentences: the cause, what pointed to it, what you did, and one tip to prevent it.\n"
+    "short sentences: the cause, what pointed to it, what you did, and one tip to prevent it. "
+    "For a manual job, once the last page is done and the proof holds: what they built, a "
+    "mistake you caught along the way if there was one, and one tip. "
+    "Then ask if they're good to close up, with the job's finishing up, like 'Good to close "
+    "up? Just set the lid back on with both hands and put the towel away.' If they are, say a "
+    "short goodbye, like 'Nice work today. Say Felix if you need me.', and head off until they "
+    "call you again: they finish up on their own. If they need more, keep helping.\n"
     "\n"
     "HOW YOU GIVE INSTRUCTIONS\n"
     "One action per instruction, then wait. When a part is labeled in their headset, use its "
     "label's name, so the headset points at it. Describe parts by look, color and place first, "
     "like 'the rubber flap at the bottom of the tank, with a chain running up to the handle', "
     "and the name after. Check before force: when a step needs force, first make sure the "
-    "part is lined up, then say how firm is normal and what wrong feels like. If you need a "
+    "part is lined up, then say how firm is normal and what wrong feels like. When they need "
+    "to wait, like for the tank to refill, say about how long: a countdown appears over the "
+    "part, you keep listening through it, and you hear when it's up. The countdown is for "
+    "them, not a gate: if they tell you the result sooner, take it. If you need a "
     "fact about their exact model, like a part size, say you'll look it up; the answer arrives "
     "in the [Job] block a turn or two later.\n"
     "\n"
@@ -130,7 +149,9 @@ SCRIBE = (
     "what they did, call start_probe first, then finish_probe. Only confirm a cause that is "
     "what they found: if it isn't on the list, add it with set_causes first, then confirm it.\n"
     "- start_safety_check: when Felix gives the job's safety steps.\n"
-    "- write_steps: when Felix starts the fix for a confirmed cause, record every step: a "
+    "- write_steps: when Felix starts the fix for a confirmed cause, or, for a job type that "
+    "follows a manual, when he starts on a page of it (again for each new page), record every "
+    "step: a "
     "2 to 5 word panel label, the instruction, the part, a pass condition, and hands_inside. "
     "Each step is one result, not one motion: 'Give the chain a little slack', not 'Unhook "
     "the chain' then 'Rehook it'. The pass condition is that result as they can show it from "
@@ -140,8 +161,21 @@ SCRIBE = (
     "tank'. Before the last step, what they'd say once it's done is enough, like 'they say the "
     "chain is hooked back on with a little slack'. Keep it to the fewest steps that do the "
     "job; the last is the proof test.\n"
-    "- close_job: when Felix sums up after every step passed. stop_job: when Felix refuses or "
-    "stops the job. look_up: when Felix says he'll look something up.\n"
+    "- pin: when Felix has them wait for something to happen, even without calling it a wait, "
+    "like flushing and watching the tank refill, pin a countdown over the part they're waiting "
+    "on, for the time he said (or about how long it usually takes, if he didn't say: a toilet "
+    "tank refills in about a minute), with a word or two like 'Refilling'. Only when the wait "
+    "starts now, not for something they'll do later, like 'tell me when you've flushed'. When "
+    "a reading or a spot is worth keeping in view, pin a short note with no countdown, like "
+    "'Water stops here'. Pin over a labeled part when one fits (for a refill, the fill valve), "
+    "and remove a pin once it's no use.\n"
+    "- close_job: when Felix sums up after every step passed (for a manual job, once the last "
+    "page is done; the cause is what they built). stop_job: when Felix refuses or "
+    "stops the job. look_up: when Felix says he'll look something up. goodbye: when Felix "
+    "says goodbye after the job is closed or stopped.\n"
+    "Catch up in one go: people often find the cause and fix it before the record shows it, "
+    "so if the exchange shows the cause found and Felix already giving the fix, confirm the "
+    "cause and write the steps in the same call.\n"
     "Use the cause ids already in the record. If a tool is refused, fix the call and try again.")
 
 GREETING = "Hey, I'm Felix. What are we working on today?"
@@ -214,6 +248,18 @@ TOOLS = [
                  "pass_condition": {"type": "string",
                                     "description": "What a photo or their words must show."},
                  "hands_inside": {"type": "boolean"}}}}}}},
+    {"type": "function", "name": "pin",
+     "description": "Float a short note over a part in their headset, with a countdown if "
+                    "they're waiting on it. Pinning the same part again replaces its note; "
+                    "empty text removes it.",
+     "parameters": {"type": "object", "required": ["part", "text"], "properties": {
+         "part": {"type": "string",
+                  "description": "The part it floats over, named as labeled in their headset."},
+         "text": {"type": "string",
+                  "description": "1 to 4 words, like 'Refilling' or 'Front left: 32 psi'."},
+         "seconds": {"type": "number",
+                     "description": "A countdown for a wait, like 60. Leave it out for a note "
+                                    "that stays."}}}},
     {"type": "function", "name": "look_up",
      "description": "Search the web in the background, like a part size for a model number. "
                     "The answer reaches Felix in a later turn.",
@@ -223,6 +269,10 @@ TOOLS = [
      "description": "Close the job once every step has passed.",
      "parameters": {"type": "object", "required": ["cause", "evidence", "done", "proof", "tip"],
          "properties": {k: {"type": "string"} for k in ("cause", "evidence", "done", "proof", "tip")}}},
+    {"type": "function", "name": "goodbye",
+     "description": "Felix said goodbye after the job closed or stopped: he heads off until "
+                    "they call him again.",
+     "parameters": {"type": "object", "properties": {}}},
     {"type": "function", "name": "stop_job",
      "description": "Stop the job for a refusal or a stop condition. It stays stopped.",
      "parameters": {"type": "object", "required": ["reason"], "properties": {
@@ -257,18 +307,28 @@ class Felix:
 
     def __init__(self, log_path: Path | None = None,
                  record: Callable[..., None] = lambda kind, **data: None,
-                 on_update: Callable[[dict | None, str], None] = lambda panel, target: None) -> None:
+                 on_update: Callable[[dict | None, str], None] = lambda panel, target: None,
+                 on_pins: Callable[[], None] = lambda: None,
+                 on_goodbye: Callable[[], None] = lambda: None) -> None:
         self.job = Job(log_path)
         self._record = record
         self._on_update = on_update  # the scribe changed the panel or the target part
+        self._on_pins = on_pins  # the scribe changed the pins (job.pins)
+        self._on_goodbye = on_goodbye  # Felix said goodbye: he heads off
         self._history: list[dict] = [{"role": "system", "content": PERSONA}]
         self._exchanges: list[tuple[str, str]] = []  # (you, Felix), for the scribe's context
         self._photos: dict[str, bytes] = {}  # recent photos by file name, for before/after checks
         self._undo: int | None = None  # where the last turn started in the history
         self._turn: tuple[str, bytes | None, str | None] = ("", None, None)  # said, photo, file
         self._scribe: asyncio.Task | None = None
+        self._catching_up: asyncio.Task | None = None  # checking steps just written
         self._tasks: set[asyncio.Task] = set()
-        self._checked: list[str] = []  # what they checked off themselves, for his next turn
+        # What happened since his last turn that he should hear about, like a step they
+        # checked off themselves or a countdown that ran out.
+        self._news: list[str] = []
+        self._checked_off = False  # they checked something off since his last turn
+        self._labels: list[str] = []  # the parts labeled in their headset, for the scribe
+        self._said_at = time.monotonic()  # when he said the line the scribe is recording
 
     def greet(self) -> str:
         self._history.append({"role": "assistant", "content": GREETING})
@@ -292,36 +352,41 @@ class Felix:
         """What Felix says about what you just said. Call said_it() once he has said it.
 
         sound is what the mic picked up besides speech (see sounds.py). With seen, you
-        said nothing: Felix noticed something himself while watching (see look()), and
-        seen is what the verifier saw.
+        said nothing: Felix speaks up on his own about what happened, like the lid the
+        verifier just saw set down (see look()) or a countdown that ran out (see news()).
         """
         if said and (verify.says_done(said) or verify.affirms(said) or verify.checks_off(said)):
             await self.settle()  # the verifier needs the steps from his last reply
+        if self._catching_up is not None:
+            await asyncio.wait([self._catching_up])  # steps just written may have passed
+            self._catching_up = None
         self._undo = len(self._history)
         self._turn = (said, jpeg, photo)
+        self._labels = list(labels)
         panel_before = self.job.panel()
         gate_open = not self.job.gate_passed()
         if jpeg and photo:
             self._remember_photo(photo, jpeg)
-        checked = []
+        news, checked_off = [], False
         try:
             if seen is None and verify.checks_off(said):
                 self.check_off(self._next_item())
-            checked, self._checked = self._checked, []
+            news, self._news = self._news, []
+            checked_off, self._checked_off = self._checked_off, False
             if seen is not None:
-                verdicts = checked + seen
-            elif checked:
-                verdicts = checked  # they settled it themselves: nothing to check
+                verdicts = news + seen
+            elif checked_off:
+                verdicts = news  # they settled it themselves: nothing to check
             else:
-                verdicts = await self._verify_if_done(said, jpeg, photo, sound, labels)
+                verdicts = news + await self._verify_if_done(said, jpeg, photo, sound, labels)
             if gate_open and self.job.gate_passed():
                 panel_before = self.job.panel()  # the gate's tick shows first, then this
             note = "" if jpeg else " (The headset couldn't take a photo this time.)"
             if labels:
                 note += f" (Parts labeled in their headset: {', '.join(labels)}.)"
             heard = (f'The user said: "{said}"' if said else
-                     "(The user didn't say anything: you noticed this yourself in a photo while "
-                     "they worked.)")
+                     "(The user didn't say anything: something happened while they worked, "
+                     "below. Speak up about it.)")
             text = f"{heard}{note}\n\n[Job]\n{self.job.summary(for_felix=True)}"
             if sound:
                 text += f"\nMic: {sound}"
@@ -339,7 +404,8 @@ class Felix:
             think_ms = round((time.perf_counter() - start) * 1000)
         except BaseException:
             self.forget_last()  # failed, or cancelled because you said more
-            self._checked[:0] = checked  # still news for the turn that replaces this one
+            self._news[:0] = news  # still news for the turn that replaces this one
+            self._checked_off |= checked_off
             raise
         reply = response.output_text.strip()
         if not any("NOT YET" in v for v in verdicts):
@@ -364,11 +430,19 @@ class Felix:
         said, jpeg, photo = self._turn
         self._undo = None
         self._exchanges.append((said, reply))
+        gate = self.job.open_gate()
+        if gate and not self.job.gate_requested and _mentioned(reply, gate):
+            # He gave the safety steps: watch for them now, whether or not the scribe records
+            # it. In one headset run it didn't, so he asked about the lid three times.
+            self.job.start_safety_check()
+            self._show(self.job.panel())
         previous = self._scribe
+        said_at = time.monotonic()
 
         async def update() -> None:
             if previous is not None:
                 await asyncio.wait([previous])
+            self._said_at = said_at  # a countdown he gave starts from when he said it
             await self._update_record(said, reply, jpeg, photo)
 
         self._scribe = asyncio.create_task(update())
@@ -394,11 +468,13 @@ class Felix:
                              photo: str | None) -> None:
         panel_before, target_before = self.job.panel(), self.job.target_part()
         found_before = any(c["status"] == "confirmed" for c in self.job.causes)
+        steps_before = self.job.steps  # write_steps replaces the list
         earlier ="\n".join(f"User: {you}\nFelix: {felix}" if you else f"Felix: {felix}"
                             for you, felix in self._exchanges[-SCRIBE_CONTEXT - 1:-1])
         text = f"[Record]\n{self.job.summary()}\n\n"
-        if domain := domains.DOMAINS.get(self.job.domain or ""):
+        if (domain := domains.DOMAINS.get(self.job.domain or "")) and domain.get("causes"):
             text += f"[Common causes for this job type]\n{'; '.join(domain['causes'])}\n\n"
+        text += f"[Labeled in their headset]\n{', '.join(self._labels) or 'nothing yet'}\n\n"
         text += (f"[Earlier]\n{earlier or '(nothing yet)'}\n\n"
                  f'[Latest exchange]\nUser: "{said}"\nFelix: "{reply}"')
         content = [{"type": "input_text", "text": text}]
@@ -431,7 +507,11 @@ class Felix:
             step["before_photo"] = photo  # the "before" for the verifier's comparison
         self.job.save()
         found = any(c["status"] == "confirmed" for c in self.job.causes)
-        if found and not found_before and self.job.phase == "repair":
+        flash = found and not found_before and self.job.phase == "repair"
+        if self.job.steps is not steps_before and step and jpeg:
+            # Felix's next turn waits for this (see turn), so he doesn't ask for what passed.
+            self._catching_up = asyncio.create_task(self._catch_up(jpeg, photo, show=not flash))
+        if flash:
             # The cause was found and the fix written at once: show the find, then the fix.
             self._show(self.job.causes_panel())
             self._background(self._show_later(FOUND_SECONDS))
@@ -440,6 +520,15 @@ class Felix:
         if panel != panel_before or target != target_before:
             self._record("panel", **panel)
             self._on_update(panel if panel != panel_before else None, target)
+
+    async def _catch_up(self, jpeg: bytes, photo: str | None, show: bool = True) -> None:
+        """Steps just written may already be done: people often fix it while the record
+        catches up. Check them against what they've said lately, so Felix doesn't ask for
+        what they already told him. show=False leaves the panel to the found cause's flash,
+        which moves on to the steps by itself."""
+        said = " ".join(you for you, _ in self._exchanges[-4:] if you)
+        if said and self.job.current_step():
+            await self._grade_steps(said, jpeg, photo, labels=self._labels, quiet=True, show=show)
 
     def _run_tool(self, name: str, args: dict) -> tuple[str, bool]:
         """(the output the scribe sees, whether the server accepted the call)"""
@@ -464,9 +553,19 @@ class Felix:
                                         ("cause", "evidence", "done", "proof", "tip")}), True
                 case "stop_job":
                     return job.stop(args.get("reason", "")), True
+                case "pin":
+                    result = job.pin(args.get("part", ""), args.get("text", ""),
+                                     args.get("seconds") or 0, start=self._said_at)
+                    self._on_pins()
+                    return result, True
                 case "look_up":
                     self._look_up(args.get("question", ""))
                     return "Looking it up in the background.", True
+                case "goodbye":
+                    if job.phase not in ("closed", "stopped"):
+                        raise JobError("Felix only heads off once the job is closed or stopped.")
+                    self._on_goodbye()
+                    return "Felix heads off.", True
                 case _:
                     return f"Unknown tool {name}.", False
         except (JobError, TypeError) as error:
@@ -531,15 +630,16 @@ class Felix:
             self.job.record_gate(gate["id"], True, seen, on_word=True)
             self._record("verify", check=gate["id"], passed=True, on_word=True, checked_off=True,
                          seen=seen, correction="")
-            self._checked.append(f"Safety check '{gate['short']}': PASSED on their word: they "
-                                 "checked it off themselves.")
+            self._news.append(f"Safety check '{gate['short']}': PASSED on their word: they "
+                              "checked it off themselves.")
             if self.job.gate_passed():
-                self._checked.append("The safety gate passed: hands-inside work is allowed now.")
+                self._news.append("The safety gate passed: hands-inside work is allowed now.")
                 self._show(self.job.gate_panel())
                 self._background(self._show_later(GATE_TICK_SECONDS))
             else:
                 self._show(self.job.panel())
             self.job.save()
+            self._checked_off = True
             return gate["short"]
         left = [s for s in self.job.steps if s["status"] != "passed"]
         ids = [s["id"] for s in left]
@@ -554,11 +654,32 @@ class Felix:
         following = self.job.current_step()
         after = (f" Next step: {following['instruction']}" if following
                  else " Every step has passed: sum up and close out.")
-        self._checked.append(f"Verifier, step {names}: PASSED on their word: they checked it "
-                             f"off themselves. Thank them, with no 'not yet'.{after}")
+        self._news.append(f"Verifier, step {names}: PASSED on their word: they checked it "
+                          f"off themselves. Thank them, with no 'not yet'.{after}")
         self.job.save()
         self._show(self.job.panel())
+        self._checked_off = True
         return done[-1]["label"]
+
+    def acknowledge(self, caution_id: str, how: str) -> str | None:
+        """They acknowledged a caution sign: Felix says it in his own words in his next
+        turn. Returns the sign's line, or None if it was already acknowledged."""
+        caution = self.job.acknowledge(caution_id, how)
+        if caution is None:
+            return None
+        self._news.append(f"They acknowledged the caution sign '{caution['line']}' ({how}). Say "
+                          "it once in your own words, calmly, with what to do if it happens, "
+                          "then carry on.")
+        self.job.save()
+        return caution["line"]
+
+    def news(self, line: str) -> None:
+        """Something happened that Felix should hear about in his next turn, like a
+        countdown that ran out."""
+        self._news.append(line)
+
+    def has_news(self) -> bool:
+        return bool(self._news)
 
     def _next_item(self) -> str:
         """What "check it off" means: the safety check Felix asked for, else the current step."""
@@ -621,7 +742,8 @@ class Felix:
         return lines
 
     async def _grade_steps(self, said: str, jpeg: bytes, photo: str | None, sound: str = "",
-                           labels: list[str] = (), quiet: bool = False) -> str | None:
+                           labels: list[str] = (), quiet: bool = False,
+                           show: bool = True) -> str | None:
         """The current step, and any later ones their report shows worked: "I flushed and it
         stopped" passes the step before the flush too.
 
@@ -653,7 +775,8 @@ class Felix:
                      passed=bool(passed), on_word=on_word, contradicted=contradicted,
                      watching=quiet, seen=v["seen"], correction=v["correction"])
         if quiet:
-            self._show(self.job.panel())
+            if show:
+                self._show(self.job.panel())
             return None
         if not passed and contradicted:
             return (f"Verifier, step {step['id']}: NOT YET, the view shows it isn't done. "

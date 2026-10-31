@@ -20,6 +20,8 @@ STATUSES = ("open", "testing", "ruled_out", "confirmed")
 MAX_CAUSES = 6
 MAX_STEPS = 8
 PANEL_ROWS = 6
+MAX_PIN_TEXT = 32  # a few words, readable at a glance
+MAX_WAIT = 30 * 60  # the longest countdown, in seconds
 
 
 class JobError(ValueError):
@@ -46,10 +48,13 @@ class Job:
         self.closeout: dict | None = None
         self.stop_reason = ""
         self.notes: list[dict] = []  # things Felix looked up
+        self.pins: dict[str, dict] = {}  # notes and countdowns over parts, by part
+        self.cautions: list[dict] = []  # hazard signs in their headset, and when each was seen
         # The log's running history.
         self.cause_history: list[dict] = []
         self.verifications: list[dict] = []
         self.safety_checks: list[dict] = []
+        self.pin_history: list[dict] = []
 
     def now(self) -> float:
         return round(time.monotonic() - self._t0, 1)
@@ -221,6 +226,55 @@ class Job:
         self.phase = "stopped"
         return "Job stopped. It stays stopped for this session."
 
+    def pin(self, part: str, text: str, seconds=0, start: float | None = None) -> str:
+        """A short note over a part in their headset, with a countdown if they're waiting
+        on it. Pinning a part again replaces its note; empty text removes it.
+
+        start is when Felix asked them to wait (time.monotonic()), so a countdown
+        recorded a few seconds later still ends on time.
+        """
+        part, text = str(part or "").strip().lower(), str(text or "").strip()
+        if not part:
+            raise JobError("Name the part the pin goes over.")
+        if not text:
+            self.pins.pop(part, None)
+            self.pin_history.append({"t": self.now(), "part": part, "removed": True})
+            return "Pin removed."
+        if len(text) > MAX_PIN_TEXT:
+            raise JobError("A pin is a few words, like 'Refilling' or 'Front left: 32 psi'.")
+        try:
+            seconds = float(seconds or 0)
+        except (TypeError, ValueError):
+            raise JobError("seconds must be a number.") from None
+        if not 0 <= seconds <= MAX_WAIT:
+            raise JobError(f"A countdown runs for up to {MAX_WAIT // 60} minutes.")
+        start = time.monotonic() if start is None else start
+        self.pins[part] = {"part": part, "text": text, "seconds": seconds,
+                           "ends_at": start + seconds if seconds else None}
+        self.pin_history.append({"t": self.now(), "part": part, "text": text, "seconds": seconds})
+        return "Pinned." + (" You'll hear when the countdown runs out." if seconds else "")
+
+    def caution(self, name: str, line: str) -> dict:
+        """A hazard sign in their headset: the hazard's short name and the sign's line."""
+        caution = {"id": f"h{len(self.cautions) + 1}", "name": name, "line": line,
+                   "t": self.now(), "seen": None, "acknowledged": None, "how": ""}
+        self.cautions.append(caution)
+        return caution
+
+    def seen_caution(self, caution_id: str) -> None:
+        """They looked at the sign, so its line opened."""
+        for c in self.cautions:
+            if c["id"] == caution_id and c["seen"] is None:
+                c["seen"] = self.now()
+
+    def acknowledge(self, caution_id: str, how: str) -> dict | None:
+        """They acknowledged a sign; None if it's unknown or already acknowledged."""
+        caution = next((c for c in self.cautions
+                        if c["id"] == caution_id and c["acknowledged"] is None), None)
+        if caution is not None:
+            caution["acknowledged"], caution["how"] = self.now(), how
+        return caution
+
     # -- what the verifier decides
 
     def open_gate(self) -> list[dict]:
@@ -262,7 +316,8 @@ class Job:
         return next((p for p in self.probes if p["status"] == "running"), None)
 
     def gate_passed(self) -> bool:
-        return bool(self.gate) and all(g["passed"] for g in self.gate)
+        """Once the job type is known: every safety check passed, or it has none."""
+        return self.domain is not None and all(g["passed"] for g in self.gate)
 
     def target_part(self) -> str:
         """The part Felix is working on right now, for the headset to point at."""
@@ -295,6 +350,9 @@ class Job:
             lines.append("Safety gate: " + "; ".join(
                 f"{g['id']} {'passed' if g['passed'] else 'not yet'}" for g in self.gate)
                 + (". Hands-inside work is allowed." if self.gate_passed() else
+                   ". Hands-inside work waits for it. The safety steps were already given: "
+                   "don't repeat them unless they ask or the next step needs their hands inside."
+                   if self.gate_requested else
                    ". Hands-inside work is NOT allowed yet: give the safety steps first."))
         if self.causes:
             lines.append("Causes: " + "; ".join(
@@ -306,6 +364,16 @@ class Job:
             lines.append("Steps: " + "; ".join(
                 f"{s['id']} [{s['status']}] {s['instruction']} (passes if: {s['pass_condition']})"
                 for s in self.steps))
+        if self.pins:
+            lines.append("Pinned in their headset: " + "; ".join(
+                f"over the {p['part']}, '{p['text']}'" + _time_left(p) for p in self.pins.values()))
+        if self.cautions:
+            lines.append("Caution signs in their headset: " + "; ".join(
+                f"'{c['line']}' " + ("(acknowledged)" if c["acknowledged"] is not None else
+                                     "(not acknowledged yet: before a step that puts their "
+                                     "hands near it, ask them to look at the sign and say "
+                                     "'got it')")
+                for c in self.cautions))
         for note in self.notes:
             if not note.get("told"):
                 lines.append(f"Looked up '{note['question']}': {note['answer']}")
@@ -323,7 +391,8 @@ class Job:
         if self.gate_requested and self.open_gate():
             return self.gate_panel()
         if self.phase in ("repair", "closed") and self.steps:
-            title = "Fixed!" if self.phase == "closed" else (self.steps_title or "The fix")
+            done = DOMAINS.get(self.domain or "", {}).get("done_title", "Fixed!")
+            title = done if self.phase == "closed" else (self.steps_title or "The fix")
             rows = [{"text": s["label"],
                      "mark": {"passed": "check", "current": "dot"}.get(s["status"], "none"),
                      "style": {"passed": "dim", "current": "active"}.get(s["status"], "normal"),
@@ -374,9 +443,17 @@ class Job:
             "probes": self.probes, "steps": self.steps, "verifications": self.verifications,
             "diagnosis": diagnosis, "closeout": self.closeout, "stopped": self.stop_reason or None,
             "looked_up": [{k: v for k, v in n.items() if k != "told"} for n in self.notes],
+            "pins": self.pin_history, "cautions": self.cautions,
         }
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self.log_path.write_text(json.dumps(record, indent=2), encoding="utf-8")
+
+
+def _time_left(pin: dict) -> str:
+    if pin["ends_at"] is None:
+        return ""
+    left = pin["ends_at"] - time.monotonic()
+    return f" (countdown: {left:.0f} s left)" if left > 0 else " (countdown done)"
 
 
 def _prior(value) -> float:

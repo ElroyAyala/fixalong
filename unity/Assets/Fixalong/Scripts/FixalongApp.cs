@@ -25,6 +25,8 @@ namespace Fixalong
         public MicStream mic;
         public PartLabels labels;
         public Checklist checklist;
+        public Pins pins;
+        public Cautions cautions;
         public Cues cues;
 
         const int MaxQueuedLogs = 200;
@@ -59,6 +61,9 @@ namespace Fixalong
             public string title;
             public Checklist.Row[] rows;
             public string moment;
+            public Pins.Pin[] pins;
+            public int x; // a caution's point in its photo
+            public int y;
         }
 
         void OnEnable()
@@ -66,6 +71,8 @@ namespace Fixalong
             link.Connected += OnConnected;
             link.MessageReceived += OnMessage;
             checklist.Tapped += OnCheckedOff;
+            cautions.Seen += OnCautionSeen;
+            cautions.Acknowledged += OnCautionAcknowledged;
             Application.logMessageReceivedThreaded += OnLog;
         }
 
@@ -74,12 +81,21 @@ namespace Fixalong
             link.Connected -= OnConnected;
             link.MessageReceived -= OnMessage;
             checklist.Tapped -= OnCheckedOff;
+            cautions.Seen -= OnCautionSeen;
+            cautions.Acknowledged -= OnCautionAcknowledged;
             Application.logMessageReceivedThreaded -= OnLog;
         }
 
         // You pinched a row on the checklist: the server passes it on your word.
         void OnCheckedOff(string id) =>
             link.Send(JsonUtility.ToJson(new Outgoing { type = "tap", id = id }));
+
+        // You looked at a caution sign, so "got it" closes it now; or you pinched it.
+        void OnCautionSeen(string id) =>
+            link.Send(JsonUtility.ToJson(new Outgoing { type = "caution_seen", id = id }));
+
+        void OnCautionAcknowledged(string id) =>
+            link.Send(JsonUtility.ToJson(new Outgoing { type = "caution_ack", id = id }));
 
         void Update()
         {
@@ -162,12 +178,15 @@ namespace Fixalong
                     SendPhoto(message.id);
                     break;
                 case "wake":
+                    felix.Return();
                     cues.Play(cues.listen, felix.transform.position);
                     break;
                 case "listening":
+                    felix.Return();
                     felix.ShowHearing(message.text);
                     break;
                 case "heard":
+                    felix.Return();
                     felix.ShowCaption($"“{message.text}”\n<i>Thinking…</i>");
                     felix.Think();
                     break;
@@ -177,7 +196,17 @@ namespace Fixalong
                 case "quiet":
                     felix.KeepListening(message.follow_up);
                     break;
+                case "farewell":
+                    // The job's done: Felix heads off once he's finished talking, and his
+                    // work clears from the room.
+                    felix.Leave();
+                    checklist.Show("", null);
+                    labels.Clear();
+                    pins.Show(null);
+                    cautions.Clear();
+                    break;
                 case "say":
+                    felix.Return();
                     felix.Say(message.text, DecodePcm16(message.audio), message.sample_rate, message.follow_up);
                     labels.Focus(message.focus);
                     break;
@@ -189,6 +218,18 @@ namespace Fixalong
                     break;
                 case "panel":
                     checklist.Show(message.title, message.rows, message.moment);
+                    break;
+                case "pins":
+                    pins.Show(message.pins);
+                    break;
+                case "caution":
+                    cautions.Show(message.id, message.text, message.photo, message.x, message.y);
+                    break;
+                case "caution_done":
+                    cautions.Done(message.id);
+                    break;
+                case "listen":
+                    felix.ListenFor(message.follow_up);
                     break;
                 default:
                     Debug.LogWarning($"[fixalong] unknown message type '{message.type}'");

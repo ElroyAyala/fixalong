@@ -9,7 +9,7 @@ namespace Fixalong
 {
     /// <summary>
     /// Name tags on the parts Felix sees, like titles over items in a game, and
-    /// a bouncing arrow on the part he's talking about. The server names the
+    /// a bouncing arrow with a pulsing ring on the exact spot he's talking about. The server names the
     /// parts in a photo with a point on each. That point becomes a ray from where
     /// the camera was for the photo, and the depth raycast finds where the ray
     /// meets the real part.
@@ -21,6 +21,11 @@ namespace Fixalong
     /// name. A tag sits at the median of its recent sightings, so it stays put.
     /// It hides when a newer photo of its spot no longer finds it (the lid went
     /// back on) or when you walk away, and names that would overlap stack up.
+    ///
+    /// The part Felix points at shows from anywhere, larger with distance, and
+    /// when it's off to the side or behind you, an arrow near the middle of your
+    /// view leads you to it. That's how "where's the hex key?" finds a tool you
+    /// set down across the room.
     /// </summary>
     public class PartLabels : MonoBehaviour
     {
@@ -44,6 +49,8 @@ namespace Fixalong
         public float lookAngle = 9f;
         [Tooltip("Tags further than this from you fade away (meters).")]
         public float showWithin = 1.5f;
+        [Tooltip("When the part Felix points at is further than this from the middle of your view (degrees), an arrow at the edge of your view leads you to it.")]
+        public float guideBeyond = 45f;
         [Tooltip("How long every name stays up after the last new label lands, before they fade to dots (seconds).")]
         public float revealSeconds = 2f;
         [Tooltip("Parts further than this from the camera don't get a tag (meters).")]
@@ -52,12 +59,15 @@ namespace Fixalong
         public float mergeDistance = 0.03f;
         [Tooltip("A tag only moves when its sightings shift by more than this (meters).")]
         public float stickiness = 0.015f;
-        public int maxTags = 10;
+        public int maxTags = 16; // room for tools set down around the job, too
 
         const int RememberedPhotos = 20;
         const int SightingsPerTag = 7;
         const float TagScale = 0.00045f; // canvas units to meters: names keep one real-world size
         const float DotSize = 0.008f;
+        const int RingPoints = 40;
+        const float RingSmall = 0.018f; // the pointing ring's radius as it breathes (meters)
+        const float RingLarge = 0.03f;
         const float ArrowRoom = 0.05f; // extra lift for the name the arrow points at
         const float StackGap = 0.004f; // space between stacked names, as a view angle (radians)
         const float PopSeconds = 0.5f;
@@ -65,6 +75,8 @@ namespace Fixalong
         const float MaxStagger = 0.4f; // between two of them, when there are only a few
         const float FadeSeconds = 0.25f;
         const float DimmedAlpha = 0.55f; // other names while Felix points at one
+        const float GuideDistance = 0.6f; // the guide arrow rides this far ahead of you (meters)
+        const float GuideOffset = 0.14f; // and this far from the middle of your view, toward the part
 
         static readonly Color PlateColor = new(0.1f, 0.1f, 0.12f, 0.82f);
         static readonly Color FocusColor = new(1f, 0.55f, 0.2f, 0.95f);
@@ -100,6 +112,8 @@ namespace Fixalong
         readonly List<Rect> _stacked = new();
         Tag _arrowTag;
         Transform _arrow;
+        Transform _guide; // at the edge of your view, toward the part Felix points at
+        LineRenderer _ring;
         Transform _head;
         Font _font;
         float _revealUntil;
@@ -111,8 +125,24 @@ namespace Fixalong
             _arrow.SetParent(transform, false);
             _arrow.GetComponent<MeshFilter>().sharedMesh = ConeMesh();
             _arrow.GetComponent<MeshRenderer>().sharedMaterial = arrowMaterial;
-            _arrow.localScale = new Vector3(0.025f, 0.035f, 0.025f);
+            _arrow.localScale = new Vector3(0.035f, 0.05f, 0.035f);
             _arrow.gameObject.SetActive(false);
+            _guide = new GameObject("Guide", typeof(MeshFilter), typeof(MeshRenderer)).transform;
+            _guide.SetParent(transform, false);
+            _guide.GetComponent<MeshFilter>().sharedMesh = _arrow.GetComponent<MeshFilter>().sharedMesh;
+            _guide.GetComponent<MeshRenderer>().sharedMaterial = arrowMaterial;
+            _guide.localScale = new Vector3(0.02f, 0.03f, 0.02f);
+            _guide.gameObject.SetActive(false);
+
+            // A ring that pulses around the exact spot, under the arrow.
+            _ring = new GameObject("Ring").AddComponent<LineRenderer>();
+            _ring.transform.SetParent(transform, false);
+            _ring.sharedMaterial = arrowMaterial;
+            _ring.widthMultiplier = 0.003f;
+            _ring.positionCount = RingPoints;
+            _ring.loop = true;
+            _ring.useWorldSpace = true;
+            _ring.enabled = false;
         }
 
         /// <summary>Remember where the camera was for a photo, until its labels come back.</summary>
@@ -148,9 +178,7 @@ namespace Fixalong
             var stagger = Mathf.Min(MaxStagger, PopSpread / Mathf.Max(1, parts.Length));
             foreach (var part in parts)
             {
-                // Photo rows run top to bottom; viewport y runs bottom to top.
-                var viewport = new Vector2(part.x / 1000f, 1f - part.y / 1000f);
-                var ray = cameraAccess.ViewportPointToRay(viewport, pose);
+                var ray = PhotoRay(pose, part.x, part.y);
                 if (!raycaster.Raycast(ray, out var hit, maxDistance))
                 {
                     Debug.Log($"[fixalong] couldn't place the '{part.name}' label: {hit.status}");
@@ -180,12 +208,59 @@ namespace Fixalong
             RefreshFocus();
         }
 
+        /// <summary>Where a point in one of our photos is in the room (0-1000 from the
+        /// photo's top left), by the depth raycast from where the camera was, like a label.
+        /// False for a photo we no longer remember, or if the ray finds nothing.</summary>
+        public bool TryPlace(string photoId, int x, int y, out Vector3 point)
+        {
+            point = default;
+            if (!_photoPoses.TryGetValue(photoId ?? "", out var pose) || !EnvironmentRaycastManager.IsSupported
+                || !raycaster.Raycast(PhotoRay(pose, x, y), out var hit, maxDistance))
+                return false;
+            point = hit.point;
+            return true;
+        }
+
+        Ray PhotoRay(Pose pose, int x, int y)
+        {
+            // Photo rows run top to bottom; viewport y runs bottom to top.
+            var viewport = new Vector2(x / 1000f, 1f - y / 1000f);
+            return cameraAccess.ViewportPointToRay(viewport, pose);
+        }
+
         /// <summary>Where the part Felix is talking about is, while its tag shows.</summary>
         public bool TryGetFocus(out Vector3 position)
         {
             var showing = _arrowTag != null && _arrowTag.shown > 0.5f;
             position = showing ? _arrowTag.root.position : default;
             return showing;
+        }
+
+        /// <summary>Where a labeled part is, even while its tag hides for distance, for a
+        /// pin over it. False if it has no tag, or a newer photo of its spot no longer
+        /// finds it.</summary>
+        public bool TryGetPart(string name, out Vector3 position)
+        {
+            var tag = FindTag(name);
+            position = tag != null ? tag.root.position : default;
+            return tag != null && !tag.covered;
+        }
+
+        /// <summary>Where the job is: the middle of the parts labeled so far. False until
+        /// the first one lands.</summary>
+        public bool TryGetJobSpot(out Vector3 position)
+        {
+            position = _tags.Count > 0 ? Median(_tags.Select(t => t.anchor).ToList()) : default;
+            return _tags.Count > 0;
+        }
+
+        /// <summary>Take every tag down, and the arrow with them, once a job's done.</summary>
+        public void Clear()
+        {
+            foreach (var tag in _tags) Destroy(tag.root.gameObject);
+            _tags.Clear();
+            _focus.Clear();
+            _arrowTag = null; // the arrow hides on the next frame
         }
 
         /// <summary>Point at the parts Felix is talking about. None puts the arrow away.</summary>
@@ -258,7 +333,8 @@ namespace Fixalong
             {
                 tag.root.position = Vector3.Lerp(tag.root.position, tag.anchor, follow);
                 var toTag = tag.root.position - _head.position;
-                var visible = !tag.covered && toTag.magnitude < showWithin;
+                // The part Felix points at shows from anywhere, so you can find a tool you set down.
+                var visible = !tag.covered && (toTag.magnitude < showWithin || IsFocused(tag));
                 tag.shown = Mathf.MoveTowards(tag.shown, visible ? 1f : 0f, fade);
                 // A little extra angle to let go, so a name doesn't flicker at the edge.
                 var angle = Vector3.Angle(_head.forward, toTag);
@@ -271,7 +347,8 @@ namespace Fixalong
                     tag.popHeard = true;
                     if (visible && cues != null) cues.Play(cues.pop, tag.anchor);
                 }
-                var pop = Pop(Time.time - tag.popAt) * tag.shown;
+                // Beyond arm's reach, the part Felix points at grows with distance, so it stays readable.
+                var pop = Pop(Time.time - tag.popAt) * tag.shown * FarScale(tag, toTag);
                 var name = Mathf.SmoothStep(0f, 1f, tag.named);
                 tag.dot.localScale = Vector3.one * (DotSize * pop);
                 tag.plate.localScale = Vector3.one * (TagScale * pop * Mathf.Lerp(0.6f, 1f, name));
@@ -290,10 +367,53 @@ namespace Fixalong
             }
             var pointing = _arrowTag != null && _arrowTag.shown > 0.5f;
             _arrow.gameObject.SetActive(pointing);
+            _ring.enabled = pointing;
             if (pointing)
             {
+                var spot = _arrowTag.root.position;
+                var far = FarScale(_arrowTag, spot - _head.position);
                 var bob = Mathf.Sin(Time.time * 5f) * 0.008f;
-                _arrow.position = _arrowTag.root.position + Vector3.up * (0.015f + bob);
+                _arrow.position = spot + Vector3.up * ((0.025f + bob) * far);
+                _arrow.localScale = new Vector3(0.035f, 0.05f, 0.035f) * far;
+                DrawRing(spot, far);
+            }
+            UpdateGuide(pointing);
+        }
+
+        float FarScale(Tag tag, Vector3 toTag) =>
+            IsFocused(tag) ? Mathf.Max(1f, toTag.magnitude / showWithin) : 1f;
+
+        // When the part Felix points at is off to the side or behind you, an arrow near the
+        // middle of your view points the way, nudging toward it, until it's in front of you.
+        void UpdateGuide(bool pointing)
+        {
+            var toPart = pointing ? _arrowTag.root.position - _head.position : Vector3.zero;
+            var show = pointing && Vector3.Angle(_head.forward, toPart) > guideBeyond;
+            _guide.gameObject.SetActive(show);
+            if (!show) return;
+            var local = _head.InverseTransformDirection(toPart);
+            var across = new Vector2(local.x, local.y);
+            across = across.sqrMagnitude < 0.0001f ? Vector2.right : across.normalized; // right behind you
+            var way = _head.TransformDirection(new Vector3(across.x, across.y, 0f));
+            var nudge = Mathf.Sin(Time.time * 6f) * 0.012f;
+            _guide.position = _head.position + _head.forward * GuideDistance + way * (GuideOffset + nudge);
+            _guide.rotation = Quaternion.FromToRotation(Vector3.down, way); // the cone's tip points down
+        }
+
+        // The ring faces you, a little toward you so the part doesn't hide it, and breathes
+        // between two sizes.
+        void DrawRing(Vector3 spot, float far)
+        {
+            var toYou = (_head.position - spot).normalized;
+            var right = Vector3.Cross(Vector3.up, toYou);
+            right = right.sqrMagnitude < 0.0001f ? _head.right : right.normalized;
+            var up = Vector3.Cross(toYou, right);
+            var radius = Mathf.Lerp(RingSmall, RingLarge, 0.5f + 0.5f * Mathf.Sin(Time.time * 4f)) * far;
+            var center = spot + toYou * 0.01f;
+            for (var i = 0; i < RingPoints; i++)
+            {
+                var a = i * Mathf.PI * 2f / RingPoints;
+                _ring.SetPosition(i, center + (right * Mathf.Cos(a) + up * Mathf.Sin(a)) * radius);
             }
         }
 

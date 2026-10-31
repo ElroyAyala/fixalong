@@ -14,6 +14,8 @@ sends everything else as JSON text frames:
                             (answers a "snap"; an empty image means the camera wasn't ready)
                         {"type": "log", "level": str, "text": str}
                         {"type": "tap", "id": str}   you checked a row off on the checklist
+                        {"type": "caution_seen", "id": str}  you looked at a caution sign
+                        {"type": "caution_ack", "id": str}   you pinched it: "got it"
     server -> headset   {"type": "say", "text": str, "audio": "<base64 16-bit mono PCM>",
                          "sample_rate": int, "follow_up": seconds, "focus": [part names]}
                         {"type": "filler", "audio": str, "sample_rate": int}
@@ -28,6 +30,19 @@ sends everything else as JSON text frames:
                             the parts in that photo, on a 0-1000 grid from its top left;
                             complete means every part in view, not just one Felix named
                         {"type": "focus", "focus": [part names]}  point at these labels
+                        {"type": "pins", "pins": [{"part", "text", "countdown": bool,
+                                                   "seconds_left": float}]}
+                            Felix's notes and countdowns, each over the labeled part named;
+                            the whole set each time, so a pin left out is removed
+                        {"type": "listen", "follow_up": seconds}  keep listening this long,
+                            like through a countdown
+                        {"type": "caution", "id": str, "text": str, "photo": snap id,
+                         "x": int, "y": int}
+                            a hazard to you or the headset: a sign at that point in that
+                            photo, on the same grid as labels, until you acknowledge it
+                        {"type": "caution_done", "id": str}  you acknowledged it: it closes
+                        {"type": "farewell"}  the job's done and Felix said goodbye: he heads
+                            off, and the panel, labels and pins clear; "Felix" brings him back
                         {"type": "panel", "title": str, "rows": [{"text", "mark", "style", "id"}],
                          "moment": str}
                             Felix's checklist: the possible causes, then the repair steps.
@@ -58,7 +73,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse
 
-from . import config, felix, parts, voice
+from . import config, domains, felix, hazards, parts, verify, voice
 from .ears import Ears
 from .session import Session, monitor
 from .sounds import Sounds
@@ -94,8 +109,9 @@ class Headset:
     def __init__(self, ws: WebSocket) -> None:
         self.ws = ws
         self.session = Session()
-        self.felix = felix.Felix(log_path=config.LOGS_DIR / f"{self.session.id}.json",
-                                 record=self.session.event, on_update=self.on_job_update)
+        self._jobs = 0
+        self.felix = self.new_felix()
+        self._leaving = False  # Felix is heading off after a goodbye
         self.ears = Ears(on_partial=self.on_partial, on_sentence=self.on_sentence)
         self.sounds = Sounds()  # what the mic hears besides speech, like a refill running
         self._send_lock = asyncio.Lock()
@@ -113,9 +129,14 @@ class Headset:
         self._heard_at = 0.0  # when you last said anything
         self._labels: list[str] = []  # every part labeled this session, oldest first
         self._labeling = False
+        self._checking_hazards = False
+        self._hazards_at = -config.HAZARD_GAP_SECONDS  # the last hazard check
         self._named: dict[str, list[str]] = {}  # parts found for a reply he hasn't said yet
         self._last_reply = ""
         self._target = ""  # the part Felix is working on, from the job
+        self._last_photo: tuple[bytes, str | None, str] | None = None  # (JPEG, file, snap id)
+        self._countdowns: set[tuple[str, float]] = set()  # (part, ends_at) Felix will check in on
+        self._looked_for: set[str] = set()  # pinned parts searched for a label
         self._closed = False
 
     async def run(self) -> None:
@@ -138,10 +159,32 @@ class Headset:
                 self.on_photo(msg)
             elif kind == "tap":
                 self.on_tap(msg.get("id") or "")
+            elif kind == "caution_seen":
+                self.felix.job.seen_caution(msg.get("id") or "")
+                self.session.event("caution_seen", id=msg.get("id"))
+            elif kind == "caution_ack":
+                self.on_caution_ack(msg.get("id") or "")
             elif kind == "log":
                 self.session.event("headset_log", level=msg.get("level"), text=msg.get("text"))
             else:
                 self.session.event("unknown_message", type=kind)
+
+    def new_felix(self) -> felix.Felix:
+        """Felix for a new job. The session's first job logs under the session's name; a job
+        after a goodbye adds its number."""
+        self._jobs += 1
+        job = self._jobs
+        name = self.session.id if job == 1 else f"{self.session.id}-{job}"
+
+        def current() -> bool:
+            # An earlier job's Felix may still finish background work; it stays off the headset.
+            return job == self._jobs
+
+        return felix.Felix(
+            log_path=config.LOGS_DIR / f"{name}.json", record=self.session.event,
+            on_update=lambda panel, target: current() and self.on_job_update(panel, target),
+            on_pins=lambda: current() and self.on_pins(),
+            on_goodbye=lambda: current() and self.on_goodbye())
 
     async def close(self) -> None:
         self._closed = True
@@ -212,6 +255,23 @@ class Headset:
         self._unanswered.append(f'I checked off "{checked}" on my checklist.')
         self.respond()
 
+    def on_caution_ack(self, caution_id: str) -> None:
+        """You pinched a caution sign: Felix answers as if you'd said "got it"."""
+        if not self.acknowledge(caution_id, "pinched the sign"):
+            return
+        self._open_until = max(self._open_until, time.monotonic() + config.CONVERSATION_SECONDS)
+        self._unanswered.append('I tapped "got it" on the caution sign.')
+        self.respond()
+
+    def acknowledge(self, caution_id: str, how: str) -> bool:
+        """You acknowledged a caution sign: it closes, and Felix says it in his own words."""
+        line = self.felix.acknowledge(caution_id, how)
+        self.session.event("caution_acknowledged", id=caution_id, how=how, line=line)
+        if line is None:
+            return False
+        self.spawn(self.send({"type": "caution_done", "id": caution_id}))
+        return True
+
     def respond(self) -> None:
         """Answer what you've said: now, or by starting over if he hasn't started answering."""
         if self._turn is None or self._turn.done():
@@ -262,6 +322,10 @@ class Headset:
         count = len(self._unanswered)
         said = " ".join(self._unanswered)
         await self.send({"type": "heard", "text": said})
+        for caution in self.felix.job.cautions:
+            if caution["acknowledged"] is None \
+                    and verify.acknowledges(said, looked=caution["seen"] is not None):
+                self.acknowledge(caution["id"], "said so")
         thought = asyncio.Event()  # set once he knows what he'll say
         self.spawn(self.fill_in(thought, self.felix.will_check(said)))
         try:
@@ -295,9 +359,14 @@ class Headset:
         await self.send({"type": "filler", "audio": base64.b64encode(audio).decode(),
                          "sample_rate": config.VOICE_SAMPLE_RATE})
 
-    async def noticed_turn(self, seen: list[str], jpeg: bytes, photo: str | None,
-                           photo_id: str) -> None:
-        """Felix speaks up about something he saw while watching, like the lid set down."""
+    async def noticed_turn(self, seen: list[str], jpeg: bytes | None = None,
+                           photo: str | None = None, photo_id: str = "") -> None:
+        """Felix speaks up on his own: about something he saw while watching, like the lid
+        set down, or about his news, like a countdown that ran out."""
+        if jpeg is None:
+            jpeg, photo, photo_id = await self.request_photo()
+            if jpeg:
+                self.label(jpeg, photo, photo_id)
         start = time.perf_counter()
         turn = await self.felix.turn("", jpeg, photo, self._labels, self.sounds.describe(),
                                      seen=seen)
@@ -317,10 +386,9 @@ class Headset:
                              "follow_up": max(0.0, self._open_until - time.monotonic())})
             return
         self._target = turn.target
-        if jpeg and not (parts.match(turn.target, self._labels)
-                         or parts.mentioned(reply, self._labels)):
-            # He may mean a part with no label yet, like a thin chain or the tank lid
-            # before anything's labeled: look for it.
+        if jpeg:
+            # Look for exactly what he means, so the arrow lands on it: a spot on a labeled
+            # part, like the flapper's ears, or a part with no label yet, like a thin chain.
             self.spawn(self._label(jpeg, photo, photo_id, named_in=reply))
         try:
             start = time.perf_counter()
@@ -331,8 +399,8 @@ class Headset:
             self.felix.forget_last()  # you kept talking, so he never said it
             raise
         del self._unanswered[:count]
-        await self.say(reply, audio=audio, voice_ms=voice_ms, said=said, photo=photo,
-                       think_ms=think_ms)
+        await self.say(reply, audio=audio, wanted=parts.asked_for(said, self._labels),
+                       voice_ms=voice_ms, said=said, photo=photo, think_ms=think_ms)
         self.felix.said_it(reply)  # the scribe updates the job while he talks
 
     async def watch(self) -> None:
@@ -341,12 +409,17 @@ class Headset:
         only looks while nobody's talking, and stops a while after he last spoke."""
         while not self._closed:
             await asyncio.sleep(config.WATCH_SECONDS)
+            if (self.felix.job.phase == "closed" and not self._leaving and self.idle()
+                    and time.monotonic() > self._open_until):
+                self.spawn(self.farewell())  # the job's done and the conversation ended
+                continue
             if not (self.felix.watching() and self.idle()
                     and time.monotonic() - self._speaking_until < config.WATCH_FOR_SECONDS):
                 continue
             jpeg, photo, photo_id = await self.request_photo()
             if not jpeg:
                 continue
+            self.label(jpeg, photo, photo_id)  # so the parts are labeled as soon as you look in
             try:
                 seen = await self.felix.look(jpeg, photo)
             except Exception as error:
@@ -354,6 +427,29 @@ class Headset:
                 continue
             if seen and self.idle():
                 self.start_turn(self.noticed_turn(seen, jpeg, photo, photo_id), "noticed")
+
+    def on_goodbye(self) -> None:
+        if not self._closed:
+            self.spawn(self.farewell())
+
+    async def farewell(self) -> None:
+        """The job's done and Felix said goodbye, or the conversation ended after it. Once
+        he's done talking, he heads off, and the next "Felix" starts a new job."""
+        if self._leaving:
+            return
+        self._leaving = True
+        give_up = time.monotonic() + 15  # in case a last exchange runs long
+        while not self.idle() and time.monotonic() < give_up:
+            await asyncio.sleep(0.3)
+        self.session.event("farewell")
+        await self.send({"type": "farewell"})
+        self._open_until = 0.0  # he needs his name again
+        self._labels, self._target, self._named = [], "", {}
+        self._countdowns.clear()
+        self._looked_for.clear()
+        self.felix = self.new_felix()
+        self.felix.greet()  # his history starts as it does at hello, though he doesn't say it
+        self._leaving = False
 
     def idle(self) -> bool:
         """Nobody's talking, and Felix isn't working on an answer."""
@@ -376,6 +472,59 @@ class Headset:
         await self.send({"type": "panel", "title": panel["title"], "rows": panel["rows"],
                          "moment": panel.get("moment", "")})
 
+    # -- pins: notes and countdowns over parts
+
+    def on_pins(self) -> None:
+        """The scribe pinned or removed a note. A countdown keeps Felix listening until a
+        while after it ends, and he checks in when it does."""
+        if self._closed:
+            return
+        self.spawn(self.send_pins())
+        now = time.monotonic()
+        for pin in self.felix.job.pins.values():
+            part = pin["part"]
+            if not parts.match(part, self._labels) and part not in self._looked_for \
+                    and self._last_photo:
+                # Nothing labeled there yet: look for it, so the pin has a spot.
+                self._looked_for.add(part)
+                self.spawn(self._label(*self._last_photo, named_in=f"Look at the {part}.",
+                                       point=False))
+            countdown = (part, pin["ends_at"])
+            if pin["ends_at"] and pin["ends_at"] > now and countdown not in self._countdowns:
+                self._countdowns.add(countdown)
+                self._open_until = max(self._open_until, pin["ends_at"] + config.CONVERSATION_SECONDS)
+                self.spawn(self.send({"type": "listen", "follow_up": self._open_until - now}))
+                self.spawn(self.when_up(*countdown))
+
+    async def send_pins(self) -> None:
+        now = time.monotonic()
+        await self.send({"type": "pins", "pins": [
+            {"part": (parts.match(p["part"], self._labels) or [p["part"]])[0], "text": p["text"],
+             "countdown": p["ends_at"] is not None,
+             "seconds_left": max(0.0, p["ends_at"] - now) if p["ends_at"] else 0.0}
+            for p in self.felix.job.pins.values()]})
+
+    async def when_up(self, part: str, ends_at: float) -> None:
+        """When a countdown runs out, Felix hears about it and checks in: right away if
+        nobody's talking, otherwise in his next answer."""
+        await asyncio.sleep(max(0.0, ends_at - time.monotonic()))
+        pin = self.felix.job.pins.get(part)
+        if self._closed or pin is None or pin["ends_at"] != ends_at:
+            return  # replaced or removed meanwhile
+        self.session.event("countdown_done", part=part, text=pin["text"])
+        self.felix.news(f"The countdown '{pin['text']}' over the {part} just ran out: check "
+                        "in with them about it.")
+        while not self._closed and self.felix.has_news():
+            if self.idle():
+                self.start_turn(self.noticed_turn([]), "countdown")
+                break
+            await asyncio.sleep(0.5)
+        # The headset shows it done for a while; then it goes, unless it was replaced.
+        await asyncio.sleep(config.PIN_DONE_SECONDS)
+        if self.felix.job.pins.get(part) is pin:
+            self.felix.job.pin(part, "")
+            await self.send_pins()
+
     async def until_you_pause(self) -> None:
         """Wait until you've stopped talking, so Felix never cuts in.
 
@@ -396,6 +545,8 @@ class Headset:
         try:
             await self.send({"type": "snap", "id": request})
             jpeg, photo = await asyncio.wait_for(future, config.PHOTO_TIMEOUT_SECONDS)
+            if jpeg:
+                self._last_photo = (jpeg, photo, request)
             return jpeg, photo, request
         except asyncio.TimeoutError:
             self.session.event("photo_timeout", id=request)
@@ -411,14 +562,57 @@ class Headset:
             return
         self._labeling = True
         self.spawn(self._label(jpeg, photo, photo_id))
+        self.check_hazards(jpeg, photo, photo_id)
+
+    # -- caution signs for hazards to you or the headset
+
+    def check_hazards(self, jpeg: bytes, photo: str | None, photo_id: str) -> None:
+        """Look for hazards in a photo in the background, once the job type is known: one
+        check at a time, and not every photo while the headset watches."""
+        job = self.felix.job
+        now = time.monotonic()
+        if (self._checking_hazards or now - self._hazards_at < config.HAZARD_GAP_SECONDS
+                or job.domain not in domains.DOMAINS or job.phase in ("closed", "stopped")):
+            return
+        self._checking_hazards = True
+        self._hazards_at = now
+        self.spawn(self._check_hazards(jpeg, photo, photo_id))
+
+    async def _check_hazards(self, jpeg: bytes, photo: str | None, photo_id: str) -> None:
+        """Each new hazard gets a caution sign, and Felix keeps listening, so "got it"
+        needs no name."""
+        job = self.felix.job
+        try:
+            start = time.perf_counter()
+            found = await hazards.find(jpeg, job.domain, domains.DOMAINS[job.domain]["hazards"],
+                                       [c["name"] for c in job.cautions])
+            self.session.event("hazards", photo=photo, hazards=found, think_ms=ms(start))
+            if not found or job is not self.felix.job or job.phase in ("closed", "stopped"):
+                return
+            for hazard in found:
+                caution = job.caution(hazard["name"], hazard["line"])
+                await self.send({"type": "caution", "id": caution["id"], "text": caution["line"],
+                                 "photo": photo_id, "x": hazard["x"], "y": hazard["y"]})
+            job.save()
+            now = time.monotonic()
+            self._open_until = max(self._open_until, now + config.CONVERSATION_SECONDS)
+            await self.send({"type": "listen", "follow_up": self._open_until - now})
+        except Exception as error:
+            log.exception("hazard check failed")
+            self.session.event("error", during="hazards", error=repr(error))
+        finally:
+            self._checking_hazards = False
 
     async def _label(self, jpeg: bytes, photo: str | None, photo_id: str,
-                     named_in: str | None = None) -> None:
-        """Label the parts in a photo, or with named_in, just the part that reply is about."""
+                     named_in: str | None = None, point: bool = True) -> None:
+        """Label the parts in a photo, or with named_in, just the part that reply is about.
+        point=False only labels it, for a pin, without pointing the arrow at it."""
         try:
             start = time.perf_counter()
             if named_in is None:
-                found = await parts.find(jpeg, self._labels)
+                domain = domains.DOMAINS.get(self.felix.job.domain or "", {})
+                found = await parts.find(jpeg, self._labels, domain.get("work", ""),
+                                         domain["parts"] if domain.get("work") else ())
             else:
                 found = await parts.find_named(jpeg, named_in, self._labels)
             self.session.event("parts", photo=photo, parts=found, think_ms=ms(start),
@@ -431,7 +625,12 @@ class Headset:
                                  "complete": complete})
             if not found:
                 return
-            self._labels += [p["name"] for p in found if p["name"] not in self._labels]
+            new = [p["name"] for p in found if p["name"] not in self._labels]
+            self._labels += new
+            if new and self.felix.job.pins:
+                await self.send_pins()  # a pin may have been waiting for its part's label
+            if not point:
+                return
             if named_in is None:
                 # Felix may already be working on a part this photo just labeled.
                 focus = (parts.match(self._target, self._labels)
@@ -450,7 +649,10 @@ class Headset:
             if named_in is None:
                 self._labeling = False
 
-    async def say(self, text: str, audio: bytes | None = None, **context) -> None:
+    async def say(self, text: str, audio: bytes | None = None, wanted: list[str] = (),
+                  **context) -> None:
+        """Say a line, pointing at what it's about: what you asked where to find (wanted),
+        else the exact spot found for it, the part being worked on, or a part it names."""
         self._answering = True
         try:
             if audio is None:
@@ -458,8 +660,10 @@ class Headset:
                 audio = await voice.speak(text)
                 context["voice_ms"] = ms(start)
             await asyncio.sleep(max(0.0, self._speaking_until - time.monotonic()))  # a filler
-            focus = (parts.match(self._target, self._labels) or parts.mentioned(text, self._labels)
-                     or self._named.pop(text, []))
+            # The exact spot he means, when it's been found, beats the part as a whole.
+            named = self._named.pop(text, [])
+            focus = (list(wanted) or named or parts.match(self._target, self._labels)
+                     or parts.mentioned(text, self._labels))
             speech = self.session.save_speech(audio, config.VOICE_SAMPLE_RATE)
             self.session.event("felix_says", text=text, audio=speech, focus=focus, **context)
             await self.send({"type": "say", "text": text,
