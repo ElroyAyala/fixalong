@@ -19,8 +19,10 @@ sends everything else as JSON text frames:
                         {"type": "snap", "id": str}       take a photo now
                         {"type": "listening", "text": str} what Felix is hearing
                         {"type": "heard", "text": str}     what Felix is about to answer
-                        {"type": "labels", "photo": snap id, "parts": [{"name", "x", "y"}]}
-                            the parts in that photo, on a 0-1000 grid from its top left
+                        {"type": "labels", "photo": snap id, "parts": [{"name", "x", "y"}],
+                         "complete": bool}
+                            the parts in that photo, on a 0-1000 grid from its top left;
+                            complete means every part in view, not just one Felix named
                         {"type": "focus", "focus": [part names]}  point at these labels
 
 follow_up is how long Felix keeps listening without his name: the
@@ -289,10 +291,15 @@ class Headset:
                 found = await parts.find_named(jpeg, named_in, self._labels)
             self.session.event("parts", photo=photo, parts=found, think_ms=ms(start),
                                named_in=named_in)
+            complete = named_in is None
+            if found or complete:
+                # A complete list, even an empty one, tells the headset which of its
+                # tags this photo should have shown but didn't: those are covered now.
+                await self.send({"type": "labels", "photo": photo_id, "parts": found,
+                                 "complete": complete})
             if not found:
                 return
             self._labels += [p["name"] for p in found if p["name"] not in self._labels]
-            await self.send({"type": "labels", "photo": photo_id, "parts": found})
             if named_in is None:
                 # Felix may already be talking about a part this photo just labeled.
                 focus = parts.mentioned(self._last_reply, self._labels)

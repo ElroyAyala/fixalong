@@ -52,6 +52,7 @@ namespace Fixalong
             public float follow_up;
             public string photo;
             public PartLabels.Part[] parts;
+            public bool complete;
             public string[] focus;
         }
 
@@ -163,7 +164,7 @@ namespace Fixalong
                     labels.Focus(message.focus);
                     break;
                 case "labels":
-                    labels.Show(message.photo, message.parts);
+                    labels.Show(message.photo, message.parts, message.complete);
                     break;
                 case "focus":
                     labels.Focus(message.focus);

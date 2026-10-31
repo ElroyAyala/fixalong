@@ -8,16 +8,18 @@ using UnityEngine.UI;
 namespace Fixalong
 {
     /// <summary>
-    /// Name tags floating over the parts Felix sees, like titles over items in a
-    /// game, and a bouncing arrow on the part he's talking about. The server
-    /// names the parts in a photo with a point on each. That point becomes a ray
-    /// from where the camera was for the photo, and the depth raycast finds where
-    /// the ray meets the real part.
+    /// Name tags on the parts Felix sees, like titles over items in a game, and
+    /// a bouncing arrow on the part he's talking about. The server names the
+    /// parts in a photo with a point on each. That point becomes a ray from where
+    /// the camera was for the photo, and the depth raycast finds where the ray
+    /// meets the real part.
     ///
-    /// Each new photo sights the parts again. A tag sits at the median of its
-    /// recent sightings and only moves when that shifts by more than a little,
-    /// so it stays put instead of hopping every time. Tags whose names would
-    /// cover each other on screen stack upward, each with a line to its part.
+    /// New tags pop in and every name shows for a few seconds, so you see what
+    /// landed. Then each tag shrinks to a glowing dot, and its name comes back
+    /// when you look near it; the part Felix is talking about always keeps its
+    /// name. A tag sits at the median of its recent sightings, so it stays put.
+    /// It hides when a newer photo of its spot no longer finds it (the lid went
+    /// back on) or when you walk away, and names that would overlap stack up.
     /// </summary>
     public class PartLabels : MonoBehaviour
     {
@@ -34,8 +36,14 @@ namespace Fixalong
         public Material dotMaterial;
         public Material arrowMaterial;
 
-        [Tooltip("How far above its part a tag floats (meters).")]
+        [Tooltip("How far above its part a name floats (meters).")]
         public float tagHeight = 0.05f;
+        [Tooltip("A part's name shows when it's this close to the center of your view (degrees).")]
+        public float lookAngle = 9f;
+        [Tooltip("Tags further than this from you fade away (meters).")]
+        public float showWithin = 1.5f;
+        [Tooltip("How long every name shows after new labels land (seconds).")]
+        public float revealSeconds = 4f;
         [Tooltip("Parts further than this from the camera don't get a tag (meters).")]
         public float maxDistance = 4f;
         [Tooltip("A sighting this close to a tag is the same part, even under another name (meters).")]
@@ -46,14 +54,18 @@ namespace Fixalong
 
         const int RememberedPhotos = 20;
         const int SightingsPerTag = 7;
-        const float PlateScale = 0.00045f; // canvas units to meters, at arm's length
-        const float ArrowRoom = 0.05f; // extra lift for the tag the arrow points at
-        const float StackGap = 0.004f; // space between stacked tags, as a view angle (radians)
-        const float FadeInSeconds = 0.4f;
-        const float DimmedAlpha = 0.55f; // other tags while Felix points at one
+        const float TagScale = 0.00045f; // canvas units to meters: names keep one real-world size
+        const float DotSize = 0.008f;
+        const float ArrowRoom = 0.05f; // extra lift for the name the arrow points at
+        const float StackGap = 0.004f; // space between stacked names, as a view angle (radians)
+        const float PopSeconds = 0.35f;
+        const float PopStagger = 0.07f; // between tags landing together
+        const float FadeSeconds = 0.25f;
+        const float DimmedAlpha = 0.55f; // other names while Felix points at one
 
-        static readonly Color PlateColor = new(0.07f, 0.07f, 0.09f, 0.82f);
+        static readonly Color PlateColor = new(0.1f, 0.1f, 0.12f, 0.82f);
         static readonly Color FocusColor = new(1f, 0.55f, 0.2f, 0.95f);
+        static readonly Color TextColor = new(0.95f, 0.95f, 0.95f);
         static Sprite _pill;
 
         class Tag
@@ -61,15 +73,20 @@ namespace Fixalong
             public readonly List<string> names = new(); // the first is the one shown
             public readonly List<Vector3> sightings = new();
             public Vector3 anchor; // where the tag sits: the median of its sightings
-            public float stack; // lift so it doesn't cover another tag (meters, toward the top of your view)
+            public bool covered; // a newer photo of its spot didn't find it
+            public float popAt; // when it inflates in
+            public float shown; // 0-1: the whole tag (hides when covered or far away)
+            public float named; // 0-1: its name, beyond the dot
+            public bool lookedAt;
+            public float stack; // lift so its name doesn't cover another (meters, toward the top of your view)
             public Transform root; // on the part
+            public Transform dot;
             public Transform plate; // the name, facing you
             public RectTransform backing;
             public Image background;
             public CanvasGroup group;
             public LineRenderer line;
             public float seenAt;
-            public float bornAt;
         }
 
         readonly Dictionary<string, Pose> _photoPoses = new();
@@ -81,6 +98,7 @@ namespace Fixalong
         Transform _arrow;
         Transform _head;
         Font _font;
+        float _revealUntil;
 
         void Awake()
         {
@@ -102,10 +120,14 @@ namespace Fixalong
             while (_photoOrder.Count > RememberedPhotos) _photoPoses.Remove(_photoOrder.Dequeue());
         }
 
-        /// <summary>Tag the parts the server found in one of our photos.</summary>
-        public void Show(string photoId, Part[] parts)
+        /// <summary>
+        /// Tag the parts the server found in one of our photos. A complete list
+        /// names every part in view, so tags it should have found but didn't are
+        /// covered now; a partial one is just a part Felix asked about.
+        /// </summary>
+        public void Show(string photoId, Part[] parts, bool complete)
         {
-            if (parts == null || parts.Length == 0) return;
+            parts ??= Array.Empty<Part>();
             if (!_photoPoses.TryGetValue(photoId ?? "", out var pose))
             {
                 Debug.LogWarning($"[fixalong] labels came back for an unknown photo '{photoId}'");
@@ -116,7 +138,9 @@ namespace Fixalong
                 Debug.LogWarning("[fixalong] can't place labels: environment raycasting isn't supported");
                 return;
             }
+            var sighted = new HashSet<Tag>();
             var placed = new List<string>();
+            var landed = 0;
             foreach (var part in parts)
             {
                 // Photo rows run top to bottom; viewport y runs bottom to top.
@@ -127,12 +151,27 @@ namespace Fixalong
                     Debug.Log($"[fixalong] couldn't place the '{part.name}' label: {hit.status}");
                     continue;
                 }
-                var tag = Sight(part.name, hit.point);
+                var tag = Sight(part.name, hit.point, out var isNew);
+                if (isNew) tag.popAt = Time.time + landed++ * PopStagger;
+                else if (tag.covered) tag.popAt = Time.time; // back in view: pop in again
+                tag.covered = false;
+                sighted.Add(tag);
                 var spread = tag.sightings.Max(p => Vector3.Distance(p, tag.anchor));
                 placed.Add($"{part.name} at {Vector3.Distance(ray.origin, hit.point):F2} m, " +
                            $"{tag.sightings.Count} sightings within {spread * 100:F0} cm");
             }
-            Debug.Log($"[fixalong] labeled {placed.Count} of {parts.Length} parts: {string.Join("; ", placed)}");
+            var covered = new List<string>();
+            if (complete)
+            {
+                foreach (var tag in _tags.Where(t => !sighted.Contains(t) && !t.covered && InPhoto(t.anchor, pose)))
+                {
+                    tag.covered = true;
+                    covered.Add(tag.names[0]);
+                }
+            }
+            if (landed > 0) _revealUntil = Time.time + revealSeconds + landed * PopStagger;
+            Debug.Log($"[fixalong] labeled {placed.Count} of {parts.Length} parts: {string.Join("; ", placed)}" +
+                      (covered.Count > 0 ? $". Covered now: {string.Join(", ", covered)}" : ""));
             RefreshFocus();
         }
 
@@ -144,10 +183,11 @@ namespace Fixalong
             RefreshFocus();
         }
 
-        Tag Sight(string name, Vector3 point)
+        Tag Sight(string name, Vector3 point, out bool isNew)
         {
             var tag = FindTag(name) ?? _tags.Find(t => Vector3.Distance(t.anchor, point) < mergeDistance);
-            if (tag == null)
+            isNew = tag == null;
+            if (isNew)
             {
                 if (_tags.Count >= maxTags) RemoveOldest();
                 tag = CreateTag(name, point);
@@ -162,7 +202,18 @@ namespace Fixalong
             return tag;
         }
 
+        // Whether a photo from this pose showed the spot clearly enough to find its part.
+        bool InPhoto(Vector3 point, Pose pose)
+        {
+            var ahead = (Quaternion.Inverse(pose.rotation) * (point - pose.position)).z;
+            if (ahead < 0.1f || ahead > showWithin) return false;
+            var viewport = cameraAccess.WorldToViewportPoint(point, pose);
+            return viewport.x > 0.1f && viewport.x < 0.9f && viewport.y > 0.1f && viewport.y < 0.9f;
+        }
+
         Tag FindTag(string name) => _tags.Find(t => t.names.Contains(name));
+
+        bool IsFocused(Tag tag) => tag.names.Exists(_focus.Contains);
 
         void RemoveOldest()
         {
@@ -176,11 +227,7 @@ namespace Fixalong
         {
             _arrowTag = _focus.Select(FindTag).FirstOrDefault(t => t != null);
             foreach (var tag in _tags)
-            {
-                tag.background.color = tag.names.Exists(_focus.Contains) ? FocusColor : PlateColor;
-                tag.line.enabled = tag != _arrowTag; // the arrow takes the line's place
-            }
-            _arrow.gameObject.SetActive(_arrowTag != null);
+                tag.background.color = IsFocused(tag) ? FocusColor : PlateColor;
         }
 
         void LateUpdate()
@@ -192,38 +239,52 @@ namespace Fixalong
                 _head = eye.transform;
             }
             var follow = 1f - Mathf.Exp(-8f * Time.deltaTime);
+            var fade = Time.deltaTime / FadeSeconds;
+            var revealing = Time.time < _revealUntil;
             foreach (var tag in _tags)
             {
                 tag.root.position = Vector3.Lerp(tag.root.position, tag.anchor, follow);
-                // About the same size on screen, near or far.
-                var distance = Vector3.Distance(_head.position, tag.root.position);
-                tag.plate.localScale = Vector3.one * (PlateScale * Mathf.Clamp(distance / 0.6f, 0.5f, 3f));
+                var toTag = tag.root.position - _head.position;
+                var visible = !tag.covered && toTag.magnitude < showWithin;
+                tag.shown = Mathf.MoveTowards(tag.shown, visible ? 1f : 0f, fade);
+                // A little extra angle to let go, so a name doesn't flicker at the edge.
+                var angle = Vector3.Angle(_head.forward, toTag);
+                tag.lookedAt = angle < (tag.lookedAt ? lookAngle + 3f : lookAngle);
+                var wantName = revealing || tag.lookedAt || IsFocused(tag);
+                tag.named = Mathf.MoveTowards(tag.named, wantName ? 1f : 0f, fade);
+
+                var pop = Pop(Time.time - tag.popAt) * tag.shown;
+                var name = Mathf.SmoothStep(0f, 1f, tag.named);
+                tag.dot.localScale = Vector3.one * (DotSize * pop);
+                tag.plate.localScale = Vector3.one * (TagScale * pop * Mathf.Lerp(0.6f, 1f, name));
+                var dimmed = _arrowTag != null && !IsFocused(tag);
+                tag.group.alpha = tag.shown * name * (dimmed ? DimmedAlpha : 1f);
             }
-            StackOverlappingTags(follow);
+            StackOverlappingNames(follow);
             foreach (var tag in _tags)
             {
                 tag.plate.position = PlateBottom(tag, tag.stack);
                 // +Z points away from you, so the name reads toward you.
                 tag.plate.rotation = Quaternion.LookRotation(tag.plate.position - _head.position, Vector3.up);
+                tag.line.enabled = tag != _arrowTag && tag.group.alpha > 0.05f; // the arrow replaces the line
                 tag.line.SetPosition(0, tag.root.position);
                 tag.line.SetPosition(1, tag.plate.position);
-                var fade = Mathf.Clamp01((Time.time - tag.bornAt) / FadeInSeconds);
-                var dimmed = _arrowTag != null && !tag.names.Exists(_focus.Contains);
-                tag.group.alpha = fade * (dimmed ? DimmedAlpha : 1f);
             }
-            if (_arrowTag != null)
+            var pointing = _arrowTag != null && _arrowTag.shown > 0.5f;
+            _arrow.gameObject.SetActive(pointing);
+            if (pointing)
             {
                 var bob = Mathf.Sin(Time.time * 5f) * 0.008f;
                 _arrow.position = _arrowTag.root.position + Vector3.up * (0.015f + bob);
             }
         }
 
-        // Lay the names out from the bottom of your view up: a name that would
-        // cover one already placed moves up past it, and its line stretches.
-        void StackOverlappingTags(float follow)
+        // Lay the visible names out from the bottom of your view up: a name that
+        // would cover one already placed moves up past it, and its line stretches.
+        void StackOverlappingNames(float follow)
         {
             _stacked.Clear();
-            foreach (var tag in _tags.OrderBy(t => ViewHeight(t.root.position)))
+            foreach (var tag in _tags.Where(t => t.group.alpha > 0.05f).OrderBy(t => ViewHeight(t.root.position)))
             {
                 var stack = 0f;
                 for (var tries = 0; tries < 8; tries++)
@@ -248,8 +309,8 @@ namespace Fixalong
             return tag.root.position + Vector3.up * lift + _head.up * stack;
         }
 
-        // Where a tag's name plate appears in your view, as tangents of the view
-        // angle (x right, y up), and how far ahead of you it is.
+        // Where a name appears in your view, as tangents of the view angle
+        // (x right, y up), and how far ahead of you it is.
         Rect PlateRect(Tag tag, float stack, out float depth)
         {
             var local = _head.InverseTransformPoint(PlateBottom(tag, stack));
@@ -265,6 +326,16 @@ namespace Fixalong
             return local.z > 0.05f ? local.y / local.z : float.MinValue;
         }
 
+        // Inflates past full size and settles back, like a pop-up.
+        static float Pop(float age)
+        {
+            if (age <= 0f) return 0f;
+            if (age >= PopSeconds) return 1f;
+            var u = age / PopSeconds - 1f;
+            const float overshoot = 1.7f;
+            return 1f + (overshoot + 1f) * u * u * u + overshoot * u * u;
+        }
+
         Tag CreateTag(string name, Vector3 point)
         {
             var root = new GameObject($"Label: {name}").transform;
@@ -274,7 +345,7 @@ namespace Fixalong
             var dot = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             Destroy(dot.GetComponent<Collider>());
             dot.transform.SetParent(root, false);
-            dot.transform.localScale = Vector3.one * 0.008f;
+            dot.transform.localScale = Vector3.zero;
             dot.GetComponent<MeshRenderer>().sharedMaterial = dotMaterial;
 
             var line = root.gameObject.AddComponent<LineRenderer>();
@@ -282,11 +353,13 @@ namespace Fixalong
             line.widthMultiplier = 0.0015f;
             line.positionCount = 2;
             line.useWorldSpace = true;
+            line.enabled = false;
 
             // The name plate: a world-space canvas whose rounded backing sizes itself to the name.
             var canvasObject = new GameObject("Plate", typeof(RectTransform), typeof(Canvas),
                 typeof(CanvasScaler), typeof(CanvasGroup));
             canvasObject.transform.SetParent(root, false);
+            canvasObject.transform.localScale = Vector3.zero;
             canvasObject.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
             canvasObject.GetComponent<CanvasScaler>().dynamicPixelsPerUnit = 3f;
             var canvas = (RectTransform)canvasObject.transform;
@@ -316,18 +389,19 @@ namespace Fixalong
             var text = textObject.GetComponent<Text>();
             text.font = _font;
             text.fontSize = 28;
-            text.color = Color.white;
+            text.color = TextColor; // not pure white, which glares in passthrough
             text.alignment = TextAnchor.MiddleCenter;
             text.horizontalOverflow = HorizontalWrapMode.Overflow;
             text.text = char.ToUpper(name[0]) + name.Substring(1);
 
+            var group = canvasObject.GetComponent<CanvasGroup>();
+            group.alpha = 0f;
             var tag = new Tag
             {
-                anchor = point, root = root, plate = canvasObject.transform, backing = backing,
-                background = background, group = canvasObject.GetComponent<CanvasGroup>(), line = line,
-                seenAt = Time.time, bornAt = Time.time,
+                anchor = point, root = root, dot = dot.transform, plate = canvasObject.transform,
+                backing = backing, background = background, group = group, line = line,
+                popAt = Time.time, seenAt = Time.time,
             };
-            tag.group.alpha = 0f;
             tag.names.Add(name);
             return tag;
         }
