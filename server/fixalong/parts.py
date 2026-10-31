@@ -87,6 +87,26 @@ def parse(text: str) -> list[dict]:
     return found[:MAX_PARTS]
 
 
+def match(part: str, names: list[str]) -> list[str]:
+    """The label for a part the job names.
+
+    The last word names the part, so "flapper chain" finds the "chain" label,
+    not the "flapper" one.
+    """
+    part = part.strip().lower()
+    if not part:
+        return []
+    last = part.split()[-1]
+    tests = [lambda n: n == part,
+             lambda n: n.split()[-1] == last,
+             lambda n: re.search(rf"\b{re.escape(n)}\b", part) or re.search(rf"\b{re.escape(part)}\b", n)]
+    for test in tests:
+        for name in names:
+            if test(name):
+                return [name]
+    return []
+
+
 def mentioned(reply: str, names: list[str]) -> list[str]:
     """The labeled parts Felix's reply talks about, in the order he says them.
 

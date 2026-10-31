@@ -14,8 +14,9 @@ namespace Fixalong
     /// the camera was for the photo, and the depth raycast finds where the ray
     /// meets the real part.
     ///
-    /// New tags pop in and every name shows for a few seconds, so you see what
-    /// landed. Then each tag shrinks to a glowing dot, and its name comes back
+    /// New tags pop in, with a pop you hear from the part, and every name shows
+    /// for a few seconds, so you see what landed. Then each tag shrinks to a
+    /// glowing dot, and its name comes back
     /// when you look near it; the part Felix is talking about always keeps its
     /// name. A tag sits at the median of its recent sightings, so it stays put.
     /// It hides when a newer photo of its spot no longer finds it (the lid went
@@ -35,6 +36,7 @@ namespace Fixalong
         public EnvironmentRaycastManager raycaster;
         public Material dotMaterial;
         public Material arrowMaterial;
+        public Cues cues;
 
         [Tooltip("How far above its part a name floats (meters).")]
         public float tagHeight = 0.05f;
@@ -42,8 +44,8 @@ namespace Fixalong
         public float lookAngle = 9f;
         [Tooltip("Tags further than this from you fade away (meters).")]
         public float showWithin = 1.5f;
-        [Tooltip("How long every name shows after new labels land (seconds).")]
-        public float revealSeconds = 4f;
+        [Tooltip("How long every name stays up after the last new label lands, before they fade to dots (seconds).")]
+        public float revealSeconds = 2f;
         [Tooltip("Parts further than this from the camera don't get a tag (meters).")]
         public float maxDistance = 4f;
         [Tooltip("A sighting this close to a tag is the same part, even under another name (meters).")]
@@ -58,8 +60,9 @@ namespace Fixalong
         const float DotSize = 0.008f;
         const float ArrowRoom = 0.05f; // extra lift for the name the arrow points at
         const float StackGap = 0.004f; // space between stacked names, as a view angle (radians)
-        const float PopSeconds = 0.35f;
-        const float PopStagger = 0.07f; // between tags landing together
+        const float PopSeconds = 0.5f;
+        const float PopSpread = 2f; // new tags from one photo land one by one over about this long
+        const float MaxStagger = 0.4f; // between two of them, when there are only a few
         const float FadeSeconds = 0.25f;
         const float DimmedAlpha = 0.55f; // other names while Felix points at one
 
@@ -75,6 +78,7 @@ namespace Fixalong
             public Vector3 anchor; // where the tag sits: the median of its sightings
             public bool covered; // a newer photo of its spot didn't find it
             public float popAt; // when it inflates in
+            public bool popHeard; // its pop sound has played (new tags only, so it's not noisy)
             public float shown; // 0-1: the whole tag (hides when covered or far away)
             public float named; // 0-1: its name, beyond the dot
             public bool lookedAt;
@@ -141,6 +145,7 @@ namespace Fixalong
             var sighted = new HashSet<Tag>();
             var placed = new List<string>();
             var landed = 0;
+            var stagger = Mathf.Min(MaxStagger, PopSpread / Mathf.Max(1, parts.Length));
             foreach (var part in parts)
             {
                 // Photo rows run top to bottom; viewport y runs bottom to top.
@@ -152,7 +157,7 @@ namespace Fixalong
                     continue;
                 }
                 var tag = Sight(part.name, hit.point, out var isNew);
-                if (isNew) tag.popAt = Time.time + landed++ * PopStagger;
+                if (isNew) tag.popAt = Time.time + landed++ * stagger;
                 else if (tag.covered) tag.popAt = Time.time; // back in view: pop in again
                 tag.covered = false;
                 sighted.Add(tag);
@@ -169,10 +174,18 @@ namespace Fixalong
                     covered.Add(tag.names[0]);
                 }
             }
-            if (landed > 0) _revealUntil = Time.time + revealSeconds + landed * PopStagger;
+            if (landed > 0) _revealUntil = Time.time + (landed - 1) * stagger + PopSeconds + revealSeconds;
             Debug.Log($"[fixalong] labeled {placed.Count} of {parts.Length} parts: {string.Join("; ", placed)}" +
                       (covered.Count > 0 ? $". Covered now: {string.Join(", ", covered)}" : ""));
             RefreshFocus();
+        }
+
+        /// <summary>Where the part Felix is talking about is, while its tag shows.</summary>
+        public bool TryGetFocus(out Vector3 position)
+        {
+            var showing = _arrowTag != null && _arrowTag.shown > 0.5f;
+            position = showing ? _arrowTag.root.position : default;
+            return showing;
         }
 
         /// <summary>Point at the parts Felix is talking about. None puts the arrow away.</summary>
@@ -253,6 +266,11 @@ namespace Fixalong
                 var wantName = revealing || tag.lookedAt || IsFocused(tag);
                 tag.named = Mathf.MoveTowards(tag.named, wantName ? 1f : 0f, fade);
 
+                if (!tag.popHeard && Time.time >= tag.popAt)
+                {
+                    tag.popHeard = true;
+                    if (visible && cues != null) cues.Play(cues.pop, tag.anchor);
+                }
                 var pop = Pop(Time.time - tag.popAt) * tag.shown;
                 var name = Mathf.SmoothStep(0f, 1f, tag.named);
                 tag.dot.localScale = Vector3.one * (DotSize * pop);
@@ -407,7 +425,7 @@ namespace Fixalong
         }
 
         // A white rounded square with soft edges; sliced, it makes a pill of any width.
-        static Sprite PillSprite()
+        internal static Sprite PillSprite()
         {
             if (_pill != null) return _pill;
             const int size = 64, radius = 28;

@@ -26,6 +26,7 @@ namespace Fixalong.Editor
     {
         const string ScenePath = "Assets/Fixalong/Scenes/Fixalong.unity";
         const string MaterialsDir = "Assets/Fixalong/Materials";
+        const string SoundsDir = "Assets/Fixalong/Sounds";
         const string ManifestPath = "Assets/Plugins/Android/AndroidManifest.xml";
         const string CameraRigPrefab = "Packages/com.meta.xr.sdk.core/Prefabs/OVRCameraRig.prefab";
         const string ApkPath = "Builds/fixalong.apk";
@@ -47,7 +48,7 @@ namespace Fixalong.Editor
             light.type = LightType.Directional;
             light.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
 
-            BuildCameraRig();
+            var hands = BuildCameraRig();
             var felix = BuildFelix();
 
             var cameraObject = new GameObject("Passthrough Camera");
@@ -56,7 +57,13 @@ namespace Fixalong.Editor
             cameraAccess.RequestedResolution = new Vector2Int(1280, 960);
             cameraAccess.enabled = false; // CameraSnap starts it once the permission is granted
             var cameraSnap = cameraObject.AddComponent<CameraSnap>();
+            var cues = BuildCues();
             var labels = BuildPartLabels(cameraAccess);
+            labels.cues = cues;
+            felix.labels = labels;
+            var checklist = new GameObject("Checklist").AddComponent<Checklist>();
+            checklist.cues = cues;
+            checklist.hands = hands;
 
             var appObject = new GameObject("fixalong");
             var link = appObject.AddComponent<FelixLink>();
@@ -70,6 +77,8 @@ namespace Fixalong.Editor
             app.cameraSnap = cameraSnap;
             app.mic = mic;
             app.labels = labels;
+            app.checklist = checklist;
+            app.cues = cues;
 
             EnsureFolder(Path.GetDirectoryName(ScenePath));
             EditorSceneManager.SaveScene(scene, ScenePath);
@@ -157,7 +166,8 @@ namespace Fixalong.Editor
             return null;
         }
 
-        static void BuildCameraRig()
+        // Returns your two hands, for pointing at the checklist.
+        static OVRHand[] BuildCameraRig()
         {
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(CameraRigPrefab);
             var rig = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
@@ -171,6 +181,26 @@ namespace Fixalong.Editor
             var eye = tracking.Find("CenterEyeAnchor").GetComponent<Camera>();
             eye.clearFlags = CameraClearFlags.SolidColor;
             eye.backgroundColor = Color.clear; // transparent, so passthrough shows through
+
+            return new[]
+            {
+                AddHand(tracking, "LeftHandAnchor", OVRHand.Hand.HandLeft),
+                AddHand(tracking, "RightHandAnchor", OVRHand.Hand.HandRight),
+            };
+        }
+
+        // Nothing is drawn: passthrough shows your real hands. OVRHand reads the hand's
+        // pinch and the Quest's pointer ray, placed in the rig's tracking space.
+        static OVRHand AddHand(Transform tracking, string anchor, OVRHand.Hand which)
+        {
+            var handObject = new GameObject(which.ToString());
+            handObject.transform.SetParent(tracking.Find(anchor), false);
+            var hand = handObject.AddComponent<OVRHand>();
+            var settings = new SerializedObject(hand); // its hand and pointer root aren't public
+            settings.FindProperty("HandType").intValue = (int)which;
+            settings.FindProperty("_pointerPoseRoot").objectReferenceValue = tracking;
+            settings.ApplyModifiedPropertiesWithoutUndo();
+            return hand;
         }
 
         static Felix BuildFelix()
@@ -190,7 +220,7 @@ namespace Fixalong.Editor
 
             var felix = root.AddComponent<Felix>();
             felix.body = body;
-            felix.caption = BuildCaption(root.transform);
+            felix.caption = BuildCaption(); // its own object: it stays in view when he goes to a part
             return felix;
         }
 
@@ -207,29 +237,28 @@ namespace Fixalong.Editor
             return labels;
         }
 
-        static Text BuildCaption(Transform parent)
+        static Text BuildCaption()
         {
-            var canvasObject = new GameObject("Caption", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
-            canvasObject.transform.SetParent(parent, false);
+            var canvasObject = new GameObject("Felix Caption", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
             canvasObject.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
             canvasObject.GetComponent<CanvasScaler>().dynamicPixelsPerUnit = 3f;
             var canvas = (RectTransform)canvasObject.transform;
-            canvas.pivot = new Vector2(0.5f, 1f);
-            canvas.sizeDelta = new Vector2(480f, 400f);
-            canvas.localPosition = new Vector3(0f, -0.09f, 0f); // top edge just below Felix
-            canvas.localScale = Vector3.one * 0.001f; // 480 units = 0.48 m
+            canvas.pivot = new Vector2(0.5f, 0f); // Felix places it by its bottom edge
+            canvas.sizeDelta = new Vector2(440f, 400f);
+            canvas.localScale = Vector3.one * 0.0008f; // Felix rescales it with distance
 
-            // The dark backing grows downward to fit however much Felix says.
+            // The backing grows upward to fit however much Felix says, away from your work.
+            // Felix gives it rounded corners at runtime.
             var panelObject = new GameObject("Panel", typeof(RectTransform), typeof(Image),
                 typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
             panelObject.transform.SetParent(canvasObject.transform, false);
-            panelObject.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
+            panelObject.GetComponent<Image>().color = new Color(0.1f, 0.1f, 0.12f, 0.82f);
             var panel = (RectTransform)panelObject.transform;
-            panel.anchorMin = panel.anchorMax = panel.pivot = new Vector2(0.5f, 1f);
-            panel.sizeDelta = new Vector2(480f, 0f);
+            panel.anchorMin = panel.anchorMax = panel.pivot = new Vector2(0.5f, 0f);
+            panel.sizeDelta = new Vector2(440f, 0f);
             panel.anchoredPosition = Vector2.zero;
             var layout = panelObject.GetComponent<VerticalLayoutGroup>();
-            layout.padding = new RectOffset(16, 16, 10, 10);
+            layout.padding = new RectOffset(20, 20, 12, 12);
             layout.childControlWidth = layout.childControlHeight = true;
             layout.childForceExpandWidth = true;
             layout.childForceExpandHeight = false;
@@ -239,9 +268,9 @@ namespace Fixalong.Editor
             textObject.transform.SetParent(panelObject.transform, false);
             var text = textObject.GetComponent<Text>();
             text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = 26;
+            text.fontSize = 24;
             text.alignment = TextAnchor.MiddleCenter;
-            text.color = Color.white;
+            text.color = new Color(0.95f, 0.95f, 0.95f);
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
             text.verticalOverflow = VerticalWrapMode.Overflow;
             text.text = "Felix";
@@ -258,6 +287,26 @@ namespace Fixalong.Editor
             go.transform.localScale = Vector3.one * scale;
             go.GetComponent<MeshRenderer>().sharedMaterial = material;
             return go.transform;
+        }
+
+        static Cues BuildCues()
+        {
+            var cues = new GameObject("Cues").AddComponent<Cues>();
+            cues.pop = Sound("pop");
+            cues.click = Sound("click");
+            cues.woosh = Sound("woosh");
+            cues.chime = Sound("chime");
+            cues.listen = Sound("listen");
+            cues.caution = Sound("caution");
+            return cues;
+        }
+
+        static AudioClip Sound(string name)
+        {
+            var path = $"{SoundsDir}/{name}.wav";
+            var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
+            if (clip == null) Debug.LogError($"[fixalong] missing sound {path}");
+            return clip;
         }
 
         static Material MakeMaterial(string name, Color color, bool glow)

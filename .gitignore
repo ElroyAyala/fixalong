@@ -5,6 +5,8 @@
 
 # Recorded sessions hold photos of someone's home.
 server/sessions/
+# Each session's structured job log holds what people say at home, too.
+server/logs/
 
 # Python
 .venv/

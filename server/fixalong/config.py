@@ -11,6 +11,14 @@ load_dotenv(SERVER_DIR / ".env")
 # Meta Model API
 META_BASE_URL = "https://api.meta.ai/v1"
 META_MODEL = "muse-spark-1.3"
+# How hard Felix, his scribe and the verifier think: more effort is more careful but slower.
+# Felix answers out loud, so speed wins: in testing, "minimal" answered in 1-2 s with the
+# same behavior as "low". The scribe works in the background. Felix waits for the verifier,
+# and on 16 real headset moments "minimal" gave the right verdict every time in 1.4-5.6 s,
+# against 2.5-10 s (and one wrong pass) for "low".
+AGENT_EFFORT = os.environ.get("FIXALONG_AGENT_EFFORT", "minimal")
+SCRIBE_EFFORT = os.environ.get("FIXALONG_SCRIBE_EFFORT", "low")
+VERIFY_EFFORT = os.environ.get("FIXALONG_VERIFY_EFFORT", "minimal")
 MODEL_API_KEY = os.environ.get("MODEL_API_KEY", "").strip()
 
 # Felix's ears: Muse Voice Transcribe, streamed in realtime.
@@ -22,7 +30,17 @@ WAKE_WORD = "Felix"
 CONVERSATION_SECONDS = 60
 # Felix waits until you've been quiet this long before he answers, so he never cuts in.
 PAUSE_SECONDS = 1.5
+# If he hasn't answered this long after you finish, a quick "mm-hm" says he heard you;
+# when he's checking your work, a "let me look" comes sooner. At most one per this many
+# seconds, so it doesn't become a tic.
+FILLER_SECONDS = 1.5
+FILLER_CHECKING_SECONDS = 0.5
+FILLER_GAP_SECONDS = 8
 PHOTO_TIMEOUT_SECONDS = 3  # how long to wait for the headset's photo on a call
+# While Felix waits for something he can see, like the lid set down on its towel, the
+# headset takes a photo this often, for this long after he last spoke.
+WATCH_SECONDS = 3
+WATCH_FOR_SECONDS = 90
 
 # Felix's voice (ElevenLabs). The voice ID isn't secret, so it lives here.
 ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "").strip()
@@ -35,3 +53,5 @@ VOICE_SETTINGS = {"stability": 0.6, "similarity_boost": 0.75, "speed": 0.95}
 # Every session is recorded here (events, photos, Felix's speech) for review
 # and replay. Git-ignored: these are photos of someone's home.
 SESSIONS_DIR = SERVER_DIR / "sessions"
+# Each session's job as structured JSON (see job.py), for the eval. Git-ignored too.
+LOGS_DIR = SERVER_DIR / "logs"

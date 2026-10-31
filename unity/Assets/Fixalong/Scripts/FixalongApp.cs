@@ -24,6 +24,8 @@ namespace Fixalong
         public CameraSnap cameraSnap;
         public MicStream mic;
         public PartLabels labels;
+        public Checklist checklist;
+        public Cues cues;
 
         const int MaxQueuedLogs = 200;
 
@@ -54,12 +56,16 @@ namespace Fixalong
             public PartLabels.Part[] parts;
             public bool complete;
             public string[] focus;
+            public string title;
+            public Checklist.Row[] rows;
+            public string moment;
         }
 
         void OnEnable()
         {
             link.Connected += OnConnected;
             link.MessageReceived += OnMessage;
+            checklist.Tapped += OnCheckedOff;
             Application.logMessageReceivedThreaded += OnLog;
         }
 
@@ -67,8 +73,13 @@ namespace Fixalong
         {
             link.Connected -= OnConnected;
             link.MessageReceived -= OnMessage;
+            checklist.Tapped -= OnCheckedOff;
             Application.logMessageReceivedThreaded -= OnLog;
         }
+
+        // You pinched a row on the checklist: the server passes it on your word.
+        void OnCheckedOff(string id) =>
+            link.Send(JsonUtility.ToJson(new Outgoing { type = "tap", id = id }));
 
         void Update()
         {
@@ -150,11 +161,18 @@ namespace Fixalong
                 case "snap":
                     SendPhoto(message.id);
                     break;
+                case "wake":
+                    cues.Play(cues.listen, felix.transform.position);
+                    break;
                 case "listening":
                     felix.ShowHearing(message.text);
                     break;
                 case "heard":
                     felix.ShowCaption($"“{message.text}”\n<i>Thinking…</i>");
+                    felix.Think();
+                    break;
+                case "filler":
+                    felix.Filler(DecodePcm16(message.audio), message.sample_rate);
                     break;
                 case "quiet":
                     felix.KeepListening(message.follow_up);
@@ -168,6 +186,9 @@ namespace Fixalong
                     break;
                 case "focus":
                     labels.Focus(message.focus);
+                    break;
+                case "panel":
+                    checklist.Show(message.title, message.rows, message.moment);
                     break;
                 default:
                     Debug.LogWarning($"[fixalong] unknown message type '{message.type}'");

@@ -51,6 +51,16 @@
   .tag::after { content: ""; position: absolute; left: 50%; top: calc(100% + 2px); width: 7px; height: 7px;
                 margin-left: -3.5px; border-radius: 50%; background: var(--felix); border: 1px solid #fff; }
   .k-error { border-left-color: var(--bad); }
+  .k-panel, .k-scribe { border-left-color: var(--felix); }
+  .k-verify.passed { border-left-color: var(--ok); }
+  .k-verify.not-yet, .k-tool_refused { border-left-color: var(--warn); }
+  .k-felix_thinks, .k-scribe { padding: 6px 12px; }
+  .checklist { list-style: none; margin: 6px 0 0; padding: 0; }
+  .checklist li { padding: 2px 0; }
+  .checklist .mark { display: inline-block; width: 1.4em; font-weight: 700; color: var(--felix); }
+  .checklist .dim { color: var(--dim); text-decoration: line-through; }
+  .checklist .active { font-weight: 600; }
+  .checklist .found { color: var(--felix); font-weight: 700; }
   .k-headset_log { padding: 6px 12px; }
   .felix { font-size: 16px; }
   .felix::before { content: "Felix: "; color: var(--felix); font-weight: 600; }
@@ -199,6 +209,50 @@ function render(session, e) {
       body.append(el("div", "felix", e.text), el("div", "meta", timing.join(" · ")), audio);
       break;
     }
+    case "felix_thinks":
+      body.append(el("span", "dim", "Felix thought " + secs(e.think_ms)));
+      break;
+    case "filler":
+      body.append(el("span", "dim", e.checking ? "Felix: “let me look” while he checks" : "Felix: “mm-hm” while he thinks"));
+      break;
+    case "tapped":
+      body.append(el("span", e.checked ? null : "dim", e.checked
+        ? `You checked off “${e.checked}” on the checklist`
+        : `You pinched a row (${e.id}) that can't be checked off now`));
+      break;
+    case "scribe": {
+      // The job's record, kept in the background while Felix talks.
+      const tools = e.tools.map(t => `${t.name}(${JSON.stringify(t.args)})`).join("\n");
+      body.append(el("div", "label", `Record updated in ${secs(e.think_ms)}`),
+                  el("code", null, tools || "no changes"));
+      break;
+    }
+    case "panel": {
+      // The checklist as the headset shows it.
+      const marks = { check: "✓", question: "?", bang: "!", dot: "▸", none: "" };
+      const list = el("ul", "checklist");
+      for (const row of e.rows) {
+        const item = el("li", row.style);
+        item.prepend(el("span", "mark", marks[row.mark] ?? ""));
+        item.append(row.text);
+        list.append(item);
+      }
+      body.append(el("b", null, e.title || "(panel hidden)"), list);
+      break;
+    }
+    case "verify":
+      row.classList.add(e.passed ? "passed" : "not-yet");
+      body.append(el("b", null, `Verifier on ${e.check}: ${e.passed ? (e.checked_off ? "checked off by them" : e.on_word ? "passed on their word" : "passed") : "not yet"}`),
+                  el("div", "meta", "Seen: " + e.seen));
+      if (!e.passed && e.correction) body.append(el("div", "meta", "Correction: " + e.correction));
+      break;
+    case "tool_refused":
+      body.append(el("b", null, `The server refused ${e.tool}: `), el("span", null, e.error));
+      break;
+    case "looked_up":
+      body.append(el("b", null, "Looked up: "), el("span", null, e.question),
+                  el("div", "meta", `${e.answer} (${secs(e.think_ms)})`));
+      break;
     case "headset_log":
       body.append(el("code", (e.level || "").toLowerCase(), e.text));
       break;
