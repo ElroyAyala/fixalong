@@ -1,0 +1,397 @@
+{
+  "started": "2026-11-01T16:07:42",
+  "phase": "closed",
+  "domain": "toilet",
+  "problem": "Toilet leaking and running nonstop after husband replaced gasket",
+  "experience": "first-timer",
+  "experience_note": "said she doesn't know anything about it",
+  "safety_checks": [
+    {
+      "t": 55.2,
+      "check": "lid",
+      "passed": true,
+      "seen": "The toilet tank is open with its lid removed and no unsafe placement visible."
+    }
+  ],
+  "causes_over_time": [
+    {
+      "t": 26.7,
+      "causes": [
+        {
+          "id": "flapper",
+          "label": "New flapper not sealing",
+          "prior": 0.4,
+          "status": "open",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "chain",
+          "label": "Chain too tight or tangled",
+          "prior": 0.3,
+          "status": "open",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "water_level",
+          "label": "Water level too high",
+          "prior": 0.15,
+          "status": "open",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "fill_valve",
+          "label": "Fill valve faulty",
+          "prior": 0.15,
+          "status": "open",
+          "for": [],
+          "against": []
+        }
+      ]
+    },
+    {
+      "t": 79.7,
+      "after_probe": "p1",
+      "causes": [
+        {
+          "id": "flapper",
+          "label": "New flapper not sealing",
+          "prior": 0.4,
+          "status": "testing",
+          "for": [
+            "No water spilling into overflow tube, leak must be through flapper"
+          ],
+          "against": []
+        },
+        {
+          "id": "chain",
+          "label": "Chain too tight or tangled",
+          "prior": 0.3,
+          "status": "testing",
+          "for": [
+            "No spill, flapper area still suspect including chain holding it open"
+          ],
+          "against": []
+        },
+        {
+          "id": "water_level",
+          "label": "Water level too high",
+          "prior": 0.15,
+          "status": "ruled_out",
+          "for": [],
+          "against": [
+            "No water spilling into overflow tube"
+          ]
+        },
+        {
+          "id": "fill_valve",
+          "label": "Fill valve faulty",
+          "prior": 0.15,
+          "status": "testing",
+          "for": [],
+          "against": []
+        }
+      ]
+    },
+    {
+      "t": 110.1,
+      "causes": [
+        {
+          "id": "flapper",
+          "label": "New flapper not sealing",
+          "prior": 0.4,
+          "status": "testing",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "chain",
+          "label": "Chain too tight or tangled",
+          "prior": 0.3,
+          "status": "testing",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "water_level",
+          "label": "Water level too high",
+          "prior": 0.15,
+          "status": "ruled_out",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "fill_valve",
+          "label": "Fill valve faulty",
+          "prior": 0.15,
+          "status": "ruled_out",
+          "for": [],
+          "against": []
+        }
+      ]
+    },
+    {
+      "t": 119.6,
+      "after_probe": "p3",
+      "causes": [
+        {
+          "id": "flapper",
+          "label": "New flapper not sealing",
+          "prior": 0.4,
+          "status": "ruled_out",
+          "for": [],
+          "against": [
+            "pressing flapper stopped running and chain found detached, not flapper seal"
+          ]
+        },
+        {
+          "id": "chain",
+          "label": "Chain too tight or tangled",
+          "prior": 0.3,
+          "status": "confirmed",
+          "for": [
+            "chain came off in hand when checked"
+          ],
+          "against": []
+        },
+        {
+          "id": "water_level",
+          "label": "Water level too high",
+          "prior": 0.15,
+          "status": "ruled_out",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "fill_valve",
+          "label": "Fill valve faulty",
+          "prior": 0.15,
+          "status": "ruled_out",
+          "for": [],
+          "against": []
+        }
+      ]
+    }
+  ],
+  "probes": [
+    {
+      "id": "p1",
+      "instruction": "Look down at that open middle tube and tell me is water spilling into it?",
+      "target_part": "overflow tube",
+      "observe": "whether water is spilling into the overflow tube",
+      "outcomes": [
+        {
+          "result": "Yes, water is spilling into the tube",
+          "rules_out": [],
+          "supports": [
+            "water_level",
+            "fill_valve"
+          ]
+        },
+        {
+          "result": "No, water is not spilling into the tube",
+          "rules_out": [
+            "water_level"
+          ],
+          "supports": [
+            "flapper",
+            "chain"
+          ]
+        }
+      ],
+      "hands_inside": false,
+      "status": "done",
+      "result": "No water spilling into overflow tube",
+      "started": 70.5,
+      "finished": 79.7,
+      "updates": [
+        {
+          "for": "No water spilling into overflow tube, leak must be through flapper",
+          "id": "flapper",
+          "status": "testing"
+        },
+        {
+          "for": "No spill, flapper area still suspect including chain holding it open",
+          "id": "chain",
+          "status": "testing"
+        },
+        {
+          "against": "No water spilling into overflow tube",
+          "id": "water_level",
+          "status": "ruled_out"
+        }
+      ]
+    },
+    {
+      "id": "p2",
+      "instruction": "Press down on the middle of that red flapper I've marked",
+      "target_part": "flapper",
+      "observe": "whether the running stops",
+      "outcomes": [
+        {
+          "result": "running stops",
+          "rules_out": [
+            "fill_valve",
+            "water_level"
+          ],
+          "supports": [
+            "flapper",
+            "chain"
+          ]
+        },
+        {
+          "result": "running continues",
+          "rules_out": [],
+          "supports": [
+            "fill_valve"
+          ]
+        }
+      ],
+      "hands_inside": true,
+      "status": "dropped",
+      "result": "",
+      "started": 100.0,
+      "finished": 100.0
+    },
+    {
+      "id": "p3",
+      "instruction": "With the flapper closed, look at the little chain",
+      "target_part": "flapper",
+      "observe": "whether the chain hangs a bit loose or pulls tight",
+      "outcomes": [
+        {
+          "result": "loose",
+          "rules_out": [
+            "chain"
+          ],
+          "supports": [
+            "flapper"
+          ]
+        },
+        {
+          "result": "tight, tangled or caught",
+          "rules_out": [],
+          "supports": [
+            "chain"
+          ]
+        }
+      ],
+      "hands_inside": false,
+      "status": "done",
+      "result": "chain came off in her hand, detached",
+      "started": 100.0,
+      "finished": 119.6,
+      "updates": [
+        {
+          "for": "chain came off in hand when checked",
+          "id": "chain",
+          "status": "confirmed"
+        },
+        {
+          "against": "pressing flapper stopped running and chain found detached, not flapper seal",
+          "id": "flapper",
+          "status": "ruled_out"
+        }
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "label": "Clip chain on",
+      "instruction": "Hook the chain back onto the trip lever arm, leaving a little slack in the chain.",
+      "target_part": "chain",
+      "pass_condition": "they say the chain is hooked back on with a little slack",
+      "hands_inside": true,
+      "status": "passed",
+      "attempts": [
+        {
+          "t": 137.5,
+          "passed": true,
+          "seen": "They said Just did in answer to being asked to hook the chain back on.",
+          "correction": "",
+          "photo": "photos/026.jpg"
+        }
+      ],
+      "before_photo": "photos/024.jpg"
+    },
+    {
+      "id": "s2",
+      "label": "Test with flush",
+      "instruction": "Flush the toilet and watch the tank refill and then stop.",
+      "target_part": "flapper",
+      "pass_condition": "the flapper seals and the running stops, and they say the hissing has stopped",
+      "hands_inside": false,
+      "status": "passed",
+      "attempts": [
+        {
+          "t": 142.9,
+          "passed": false,
+          "seen": "They only said yes to the chain having a dip, and the photos show a full tank but no flush or hissing stopping.",
+          "correction": "Did you flush it yet to watch it refill? Did the running stop and the hissing stop?",
+          "photo": "photos/028.jpg"
+        },
+        {
+          "t": 153.0,
+          "passed": true,
+          "seen": "Their 'Yes it does' is a yes to the guide asking if they flushed it and the hissing stopped.",
+          "correction": "",
+          "photo": "photos/030.jpg"
+        }
+      ],
+      "before_photo": "photos/026.jpg"
+    }
+  ],
+  "verifications": [
+    {
+      "step": "s1",
+      "t": 137.5,
+      "passed": true,
+      "seen": "They said Just did in answer to being asked to hook the chain back on.",
+      "correction": "",
+      "photo": "photos/026.jpg"
+    },
+    {
+      "step": "s2",
+      "t": 142.9,
+      "passed": false,
+      "seen": "They only said yes to the chain having a dip, and the photos show a full tank but no flush or hissing stopping.",
+      "correction": "Did you flush it yet to watch it refill? Did the running stop and the hissing stop?",
+      "photo": "photos/028.jpg"
+    },
+    {
+      "step": "s2",
+      "t": 153.0,
+      "passed": true,
+      "seen": "Their 'Yes it does' is a yes to the guide asking if they flushed it and the hissing stopped.",
+      "correction": "",
+      "photo": "photos/030.jpg"
+    }
+  ],
+  "diagnosis": "Chain too tight or tangled",
+  "closeout": {
+    "cause": "chain",
+    "evidence": "they said chain has a little dip and the flush refilled and stopped",
+    "done": "Hooked chain back with slack",
+    "proof": "flapper seals and running stops, hissing has stopped",
+    "tip": "Leave that little dip in the chain so it stays quiet",
+    "t": 158.7
+  },
+  "stopped": null,
+  "looked_up": [],
+  "pins": [],
+  "cautions": [
+    {
+      "id": "h1",
+      "name": "open toilet tank",
+      "line": "Water nearby. Keep the headset clear.",
+      "t": 54.1,
+      "shown": 55.8,
+      "seen": 55.9,
+      "acknowledged": 64.8,
+      "how": "said so"
+    }
+  ]
+}

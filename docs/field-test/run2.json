@@ -1,0 +1,490 @@
+{
+  "started": "2026-11-01T14:37:00",
+  "phase": "closed",
+  "domain": "toilet",
+  "problem": "Toilet still leaking after dad replaced gasket",
+  "experience": "first-timer",
+  "experience_note": "assumed - no experience shown yet",
+  "safety_checks": [
+    {
+      "t": 52.5,
+      "check": "lid",
+      "passed": true,
+      "seen": "The toilet tank is open with the lid removed and no lid in the air or leaning."
+    }
+  ],
+  "causes_over_time": [
+    {
+      "t": 19.3,
+      "causes": [
+        {
+          "id": "gasket_misaligned",
+          "label": "Gasket misaligned",
+          "prior": 0.4,
+          "status": "open",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "tank_bolts",
+          "label": "Tank bolts loose",
+          "prior": 0.25,
+          "status": "open",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "supply_line",
+          "label": "Supply line leaking",
+          "prior": 0.15,
+          "status": "open",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "flapper_leak",
+          "label": "Flapper running",
+          "prior": 0.15,
+          "status": "open",
+          "for": [],
+          "against": []
+        }
+      ]
+    },
+    {
+      "t": 35.7,
+      "causes": [
+        {
+          "id": "flapper_seal",
+          "label": "Flapper not sealing",
+          "prior": 0.3,
+          "status": "open",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "flapper_ear",
+          "label": "Flapper ear unclipped",
+          "prior": 0.25,
+          "status": "open",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "chain_short",
+          "label": "Chain holding flapper open",
+          "prior": 0.2,
+          "status": "open",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "high_water",
+          "label": "Water level too high",
+          "prior": 0.15,
+          "status": "open",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "fill_valve",
+          "label": "Fill valve not shutting off",
+          "prior": 0.1,
+          "status": "open",
+          "for": [],
+          "against": []
+        }
+      ]
+    },
+    {
+      "t": 101.2,
+      "after_probe": "p1",
+      "causes": [
+        {
+          "id": "flapper_seal",
+          "label": "Flapper not sealing",
+          "prior": 0.3,
+          "status": "testing",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "flapper_ear",
+          "label": "Flapper ear unclipped",
+          "prior": 0.25,
+          "status": "testing",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "chain_short",
+          "label": "Chain holding flapper open",
+          "prior": 0.2,
+          "status": "testing",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "high_water",
+          "label": "Water level too high",
+          "prior": 0.15,
+          "status": "ruled_out",
+          "for": [],
+          "against": [
+            "No water spilling into overflow tube"
+          ]
+        },
+        {
+          "id": "fill_valve",
+          "label": "Fill valve not shutting off",
+          "prior": 0.1,
+          "status": "ruled_out",
+          "for": [],
+          "against": [
+            "No water spilling into overflow tube, fill valve appears to be shutting off"
+          ]
+        }
+      ]
+    },
+    {
+      "t": 122.2,
+      "after_probe": "p2",
+      "causes": [
+        {
+          "id": "flapper_seal",
+          "label": "Flapper not sealing",
+          "prior": 0.3,
+          "status": "testing",
+          "for": [
+            "flapper sits a little off center"
+          ],
+          "against": []
+        },
+        {
+          "id": "flapper_ear",
+          "label": "Flapper ear unclipped",
+          "prior": 0.25,
+          "status": "testing",
+          "for": [
+            "flapper sits a little off center"
+          ],
+          "against": []
+        },
+        {
+          "id": "chain_short",
+          "label": "Chain holding flapper open",
+          "prior": 0.2,
+          "status": "testing",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "high_water",
+          "label": "Water level too high",
+          "prior": 0.15,
+          "status": "ruled_out",
+          "for": [],
+          "against": [
+            "No water spilling into overflow tube"
+          ]
+        },
+        {
+          "id": "fill_valve",
+          "label": "Fill valve not shutting off",
+          "prior": 0.1,
+          "status": "ruled_out",
+          "for": [],
+          "against": [
+            "No water spilling into overflow tube, fill valve appears to be shutting off"
+          ]
+        }
+      ]
+    },
+    {
+      "t": 148.4,
+      "after_probe": "p3",
+      "causes": [
+        {
+          "id": "flapper_seal",
+          "label": "Flapper not sealing",
+          "prior": 0.3,
+          "status": "testing",
+          "for": [
+            "flapper sits a little off center"
+          ],
+          "against": []
+        },
+        {
+          "id": "flapper_ear",
+          "label": "Flapper ear unclipped",
+          "prior": 0.25,
+          "status": "confirmed",
+          "for": [
+            "flapper sits a little off center",
+            "one ear off its peg, flapper sits a little bit off centered"
+          ],
+          "against": []
+        },
+        {
+          "id": "chain_short",
+          "label": "Chain holding flapper open",
+          "prior": 0.2,
+          "status": "testing",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "high_water",
+          "label": "Water level too high",
+          "prior": 0.15,
+          "status": "ruled_out",
+          "for": [],
+          "against": [
+            "No water spilling into overflow tube"
+          ]
+        },
+        {
+          "id": "fill_valve",
+          "label": "Fill valve not shutting off",
+          "prior": 0.1,
+          "status": "ruled_out",
+          "for": [],
+          "against": [
+            "No water spilling into overflow tube, fill valve appears to be shutting off"
+          ]
+        }
+      ]
+    }
+  ],
+  "probes": [
+    {
+      "id": "p1",
+      "instruction": "Look at the tall open tube in the middle",
+      "target_part": "overflow tube",
+      "observe": "whether water is spilling into the overflow tube",
+      "outcomes": [
+        {
+          "result": "yes, water is spilling into the tube",
+          "rules_out": [],
+          "supports": [
+            "high_water",
+            "fill_valve"
+          ]
+        },
+        {
+          "result": "no, water is not spilling into the tube",
+          "rules_out": [
+            "high_water"
+          ],
+          "supports": [
+            "flapper_seal",
+            "flapper_ear",
+            "chain_short"
+          ]
+        }
+      ],
+      "hands_inside": false,
+      "status": "done",
+      "result": "No - no water spilling into overflow tube",
+      "started": 89.7,
+      "finished": 101.2,
+      "updates": [
+        {
+          "id": "high_water",
+          "status": "ruled_out",
+          "against": "No water spilling into overflow tube"
+        },
+        {
+          "id": "fill_valve",
+          "status": "ruled_out",
+          "against": "No water spilling into overflow tube, fill valve appears to be shutting off"
+        }
+      ]
+    },
+    {
+      "id": "p2",
+      "instruction": "Look at that red flapper at the bottom and see if it sits centered over the drain",
+      "target_part": "flapper",
+      "observe": "whether the flapper sits centered over the drain",
+      "outcomes": [
+        {
+          "result": "centered",
+          "rules_out": [
+            "flapper_ear"
+          ],
+          "supports": []
+        },
+        {
+          "result": "crooked or off-center",
+          "rules_out": [],
+          "supports": [
+            "flapper_ear",
+            "flapper_seal"
+          ]
+        }
+      ],
+      "hands_inside": false,
+      "status": "done",
+      "result": "A little bit off center",
+      "started": 108.3,
+      "finished": 122.2,
+      "updates": [
+        {
+          "id": "flapper_ear",
+          "status": "testing",
+          "for": "flapper sits a little off center"
+        },
+        {
+          "id": "flapper_seal",
+          "status": "testing",
+          "for": "flapper sits a little off center"
+        }
+      ]
+    },
+    {
+      "id": "p3",
+      "instruction": "Check its two side ears where they clip onto the pegs",
+      "target_part": "flapper",
+      "observe": "whether both flapper ears are clipped onto the pegs at the base of the overflow tube",
+      "outcomes": [
+        {
+          "result": "one or both ears unclipped or slipped off",
+          "rules_out": [],
+          "supports": [
+            "flapper_ear"
+          ]
+        },
+        {
+          "result": "both ears clipped on pegs",
+          "rules_out": [
+            "flapper_ear"
+          ],
+          "supports": [
+            "flapper_seal",
+            "chain_short"
+          ]
+        }
+      ],
+      "hands_inside": false,
+      "status": "done",
+      "result": "No - one flapper ear is off its peg",
+      "started": 122.2,
+      "finished": 148.4,
+      "updates": [
+        {
+          "id": "flapper_ear",
+          "status": "confirmed",
+          "for": "one ear off its peg, flapper sits a little bit off centered"
+        }
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "label": "Clip ear on peg",
+      "instruction": "Line that loose ear's hole up with its little peg, then press with firm thumb pressure until it pops on.",
+      "target_part": "flapper ear",
+      "pass_condition": "they say the loose ear popped onto its peg and both ears look clipped on",
+      "hands_inside": true,
+      "status": "passed",
+      "attempts": [
+        {
+          "t": 179.7,
+          "passed": true,
+          "seen": "They answered I believe so when asked if both flapper ears are clipped on, and the now photo with a hand on the red flapper does not plainly show an ear off.",
+          "correction": "",
+          "photo": "photos/034.jpg"
+        }
+      ],
+      "before_photo": "photos/030.jpg"
+    },
+    {
+      "id": "s2",
+      "label": "Flush to test",
+      "instruction": "Flush the toilet and watch the flapper drop and the tank refill.",
+      "target_part": "flapper",
+      "pass_condition": "the flapper drops flat and sealed, the tank refills and they say the leaking has stopped",
+      "hands_inside": false,
+      "status": "passed",
+      "attempts": [
+        {
+          "t": 190.5,
+          "passed": false,
+          "seen": "They only said yes to the ears being clipped and neither photo shows a flush happening.",
+          "correction": "Did you flush it yet? Go ahead and flush and tell me if the red flapper drops flat and the leaking stops.",
+          "photo": "photos/036.jpg"
+        },
+        {
+          "t": 220.7,
+          "passed": true,
+          "seen": "They said the leaking stopped and the second photo shows the red flapper sitting flat and sealed.",
+          "correction": "",
+          "photo": "photos/040.jpg"
+        }
+      ],
+      "before_photo": "photos/034.jpg"
+    }
+  ],
+  "verifications": [
+    {
+      "step": "s1",
+      "t": 179.7,
+      "passed": true,
+      "seen": "They answered I believe so when asked if both flapper ears are clipped on, and the now photo with a hand on the red flapper does not plainly show an ear off.",
+      "correction": "",
+      "photo": "photos/034.jpg"
+    },
+    {
+      "step": "s2",
+      "t": 190.5,
+      "passed": false,
+      "seen": "They only said yes to the ears being clipped and neither photo shows a flush happening.",
+      "correction": "Did you flush it yet? Go ahead and flush and tell me if the red flapper drops flat and the leaking stops.",
+      "photo": "photos/036.jpg"
+    },
+    {
+      "step": "s2",
+      "t": 220.7,
+      "passed": true,
+      "seen": "They said the leaking stopped and the second photo shows the red flapper sitting flat and sealed.",
+      "correction": "",
+      "photo": "photos/040.jpg"
+    }
+  ],
+  "diagnosis": "Flapper ear unclipped",
+  "closeout": {
+    "cause": "Flapper ear unclipped",
+    "evidence": "Both ears clipped on after reseating",
+    "done": "Clipped loose flapper ear back onto its peg",
+    "proof": "Flushed, flapper dropped flat and leaking stopped",
+    "tip": "Check both ears are clipped after installing a new flapper",
+    "t": 228.4
+  },
+  "stopped": null,
+  "looked_up": [],
+  "pins": [
+    {
+      "t": 201.8,
+      "part": "fill valve",
+      "text": "Refilling",
+      "seconds": 30.0
+    },
+    {
+      "t": 228.4,
+      "part": "fill valve",
+      "removed": true
+    }
+  ],
+  "cautions": [
+    {
+      "id": "h1",
+      "name": "open tank water",
+      "line": "Water nearby. Keep the headset clear.",
+      "t": 52.7,
+      "seen": 88.1,
+      "acknowledged": 101.5,
+      "how": "said so"
+    }
+  ]
+}

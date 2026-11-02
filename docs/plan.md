@@ -19,9 +19,9 @@ Everything happens in the headset, and Felix only acts when you call him.
 
 ## The demo video
 
-- **Main demo:** a real first-timer fixes the toilet with Felix. A teen who's at home in VR but has never opened a toilet tank gets a one-line opener and no hints. The toilet is staged with the most common mistake after installing a new kit: a chain that's too tight, or a flapper that isn't seated. The video says the fault was staged.
-- **The other jobs as screenshots:** a highlight reel of where it's headed, getting harder as it goes: flat-pack furniture built from its paper manual, with Felix catching a panel put in backwards, then finding the hex key after forgetting where it was set down. It ends on Felix knowing when to stop, like refusing a gas line.
-- **The rules:** the video is 3 minutes at most, and the first-timer's run takes about that, so it's the whole video. It opens with one line on what was built this week, which is all of it (a fresh repo). A few seconds of the live view, with the separate checker's verdicts, show the Meta models at work, for the judges. The rest of the submission talks shop: the choices behind Felix and why.
+- **Four real first-timers:** four people from my family each take on the same toilet with Felix, alone with the headset and a one-line opener, and no hints. The toilet is staged with the most common mistake after installing a new kit: a flapper ear off its peg, or a chain that's too tight. The video says the fault was staged. The first run ended at "call a plumber," each run's problems were fixed before the next one, and the other three fixed it.
+- **Left out:** the flat-pack job and tool memory are built but untested with real furniture, so they stay out of the video.
+- **The rules:** the video is 3 minutes at most. It opens with one line on what was built this week, which is all of it (a fresh repo). Clips of the live view, with the separate checker's verdicts, show the Meta models at work, for the judges. The rest of the submission talks shop: the choices behind Felix and why.
 
 ## Decisions
 
@@ -147,7 +147,7 @@ The API only supports `tool_choice: "auto"`, so the model always decides for its
 
 ### Session log and eval
 
-Every session also writes a structured log to `server/logs/`: the problem, safety checks, hazard cautions and when each was acknowledged, hypotheses over time, probes and their results, every verification attempt including each "not yet," the final diagnosis, and timestamps. It's git-ignored like `server/sessions/`, since it holds what people say at home. The eval reads these logs, and its summary numbers go in the README.
+Every session also writes a structured log to `server/logs/`: the problem, safety checks, hazard cautions and when each was acknowledged, hypotheses over time, probes and their results, every verification attempt including each "not yet," the final diagnosis, and timestamps. It's git-ignored like `server/sessions/`, since it holds what people say at home. The logs of the four demo-day runs are published in [field-test/](field-test/). An eval that scores these logs is planned for after the demo.
 
 ### Design constraints from Meta's guidance
 

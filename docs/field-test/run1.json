@@ -1,0 +1,459 @@
+{
+  "started": "2026-11-01T13:13:51",
+  "phase": "stopped",
+  "domain": "toilet",
+  "problem": "Toilet keeps running with no floor leak",
+  "experience": "first-timer",
+  "experience_note": "confirmed",
+  "safety_checks": [
+    {
+      "t": 810.7,
+      "check": "lid",
+      "passed": true,
+      "seen": "The toilet tank is open with its lid removed and no unsafe lid placement is visible."
+    }
+  ],
+  "causes_over_time": [
+    {
+      "t": 815.4,
+      "causes": [
+        {
+          "id": "flapper_seal",
+          "label": "flapper isn't sealing",
+          "prior": 0.35,
+          "status": "open",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "chain",
+          "label": "chain holding flapper open",
+          "prior": 0.2,
+          "status": "open",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "water_level",
+          "label": "water level too high",
+          "prior": 0.2,
+          "status": "open",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "fill_valve",
+          "label": "fill valve won't shut off",
+          "prior": 0.15,
+          "status": "open",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "handle",
+          "label": "flush handle sticks",
+          "prior": 0.1,
+          "status": "open",
+          "for": [],
+          "against": []
+        }
+      ]
+    },
+    {
+      "t": 829.4,
+      "after_probe": "p1",
+      "causes": [
+        {
+          "id": "flapper_seal",
+          "label": "flapper isn't sealing",
+          "prior": 0.35,
+          "status": "testing",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "chain",
+          "label": "chain holding flapper open",
+          "prior": 0.2,
+          "status": "testing",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "water_level",
+          "label": "water level too high",
+          "prior": 0.2,
+          "status": "ruled_out",
+          "for": [],
+          "against": [
+            "no water spilling into the tall middle tube"
+          ]
+        },
+        {
+          "id": "fill_valve",
+          "label": "fill valve won't shut off",
+          "prior": 0.15,
+          "status": "testing",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "handle",
+          "label": "flush handle sticks",
+          "prior": 0.1,
+          "status": "open",
+          "for": [],
+          "against": []
+        }
+      ]
+    },
+    {
+      "t": 869.1,
+      "after_probe": "p2",
+      "causes": [
+        {
+          "id": "flapper_seal",
+          "label": "flapper isn't sealing",
+          "prior": 0.35,
+          "status": "ruled_out",
+          "for": [],
+          "against": [
+            "running continued when flapper was pressed down"
+          ]
+        },
+        {
+          "id": "chain",
+          "label": "chain holding flapper open",
+          "prior": 0.2,
+          "status": "ruled_out",
+          "for": [],
+          "against": [
+            "running continued when flapper was pressed down"
+          ]
+        },
+        {
+          "id": "water_level",
+          "label": "water level too high",
+          "prior": 0.2,
+          "status": "ruled_out",
+          "for": [],
+          "against": [
+            "no water spilling into the tall middle tube"
+          ]
+        },
+        {
+          "id": "fill_valve",
+          "label": "fill valve won't shut off",
+          "prior": 0.15,
+          "status": "testing",
+          "for": [],
+          "against": []
+        },
+        {
+          "id": "handle",
+          "label": "flush handle sticks",
+          "prior": 0.1,
+          "status": "open",
+          "for": [],
+          "against": []
+        }
+      ]
+    },
+    {
+      "t": 931.2,
+      "after_probe": "p3",
+      "causes": [
+        {
+          "id": "flapper_seal",
+          "label": "flapper isn't sealing",
+          "prior": 0.35,
+          "status": "ruled_out",
+          "for": [],
+          "against": [
+            "running continued when flapper was pressed down"
+          ]
+        },
+        {
+          "id": "chain",
+          "label": "chain holding flapper open",
+          "prior": 0.2,
+          "status": "ruled_out",
+          "for": [],
+          "against": [
+            "running continued when flapper was pressed down"
+          ]
+        },
+        {
+          "id": "water_level",
+          "label": "water level too high",
+          "prior": 0.2,
+          "status": "ruled_out",
+          "for": [],
+          "against": [
+            "no water spilling into the tall middle tube"
+          ]
+        },
+        {
+          "id": "fill_valve",
+          "label": "fill valve won't shut off",
+          "prior": 0.15,
+          "status": "confirmed",
+          "for": [
+            "running continued while blue float held up"
+          ],
+          "against": []
+        },
+        {
+          "id": "handle",
+          "label": "flush handle sticks",
+          "prior": 0.1,
+          "status": "ruled_out",
+          "for": [],
+          "against": [
+            "running continued while float held up points to fill valve not handle"
+          ]
+        }
+      ]
+    }
+  ],
+  "probes": [
+    {
+      "id": "p1",
+      "instruction": "Lean in and tell me if water's spilling into the tall middle tube",
+      "target_part": "overflow tube",
+      "observe": "whether water is spilling into the overflow tube",
+      "outcomes": [
+        {
+          "result": "water spilling into tube",
+          "rules_out": [],
+          "supports": [
+            "water_level",
+            "fill_valve"
+          ]
+        },
+        {
+          "result": "no water spilling into tube",
+          "rules_out": [
+            "water_level"
+          ],
+          "supports": [
+            "flapper_seal",
+            "chain"
+          ]
+        }
+      ],
+      "hands_inside": false,
+      "status": "done",
+      "result": "no water spilling into the tall middle tube",
+      "started": 815.4,
+      "finished": 829.4,
+      "updates": [
+        {
+          "against": "no water spilling into the tall middle tube",
+          "id": "water_level",
+          "status": "ruled_out"
+        }
+      ]
+    },
+    {
+      "id": "p2",
+      "instruction": "Press down gently on the red flapper I've marked and tell me if the running stops?",
+      "target_part": "flapper",
+      "observe": "Whether the running water sound stops when flapper is pressed down",
+      "outcomes": [
+        {
+          "result": "running stops",
+          "rules_out": [
+            "fill_valve"
+          ],
+          "supports": [
+            "flapper_seal",
+            "chain"
+          ]
+        },
+        {
+          "result": "running continues",
+          "rules_out": [
+            "flapper_seal",
+            "chain"
+          ],
+          "supports": [
+            "fill_valve"
+          ]
+        }
+      ],
+      "hands_inside": true,
+      "status": "done",
+      "result": "running sound did not stop while pressing flapper",
+      "started": 843.3,
+      "finished": 869.1,
+      "updates": [
+        {
+          "against": "running continued when flapper was pressed down",
+          "id": "flapper_seal",
+          "status": "ruled_out"
+        },
+        {
+          "against": "running continued when flapper was pressed down",
+          "id": "chain",
+          "status": "ruled_out"
+        }
+      ]
+    },
+    {
+      "id": "p3",
+      "instruction": "Lift the blue float gently",
+      "target_part": "fill valve",
+      "observe": "if the running stops",
+      "outcomes": [
+        {
+          "result": "running stops",
+          "rules_out": [
+            "fill_valve"
+          ],
+          "supports": []
+        },
+        {
+          "result": "keeps running",
+          "rules_out": [],
+          "supports": [
+            "fill_valve"
+          ]
+        }
+      ],
+      "hands_inside": true,
+      "status": "done",
+      "result": "no it's still leaking a little bit",
+      "started": 891.0,
+      "finished": 931.2,
+      "updates": [
+        {
+          "id": "fill_valve",
+          "status": "confirmed",
+          "for": "running continued while blue float held up"
+        },
+        {
+          "id": "handle",
+          "status": "ruled_out",
+          "against": "running continued while float held up points to fill valve not handle"
+        }
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "label": "Turn off water",
+      "instruction": "Look low behind the toilet and turn that oval shutoff knob clockwise by hand until it stops",
+      "target_part": "shutoff valve",
+      "pass_condition": "they say the knob is fully clockwise and will not turn further",
+      "hands_inside": false,
+      "status": "passed",
+      "attempts": [
+        {
+          "t": 970.0,
+          "passed": true,
+          "seen": "They said they did it and the shutoff knob is low behind the toilet out of view so the photo cannot judge it.",
+          "correction": "",
+          "photo": "photos/066.jpg"
+        }
+      ],
+      "before_photo": "photos/062.jpg"
+    },
+    {
+      "id": "s2",
+      "label": "Flush tank empty",
+      "instruction": "Flush the toilet and hold the handle to drain the tank empty",
+      "target_part": "flush handle",
+      "pass_condition": "they say the tank is drained and no more water flows in",
+      "hands_inside": false,
+      "status": "current",
+      "attempts": [
+        {
+          "t": 1042.3,
+          "passed": false,
+          "seen": "They only said yeah to tightening the knob and never said the tank is empty, and the tank still shows water inside.",
+          "correction": "Please hold the flush handle down until the tank drains empty and no more water is coming in.",
+          "photo": "photos/074.jpg"
+        }
+      ],
+      "before_photo": "photos/066.jpg"
+    },
+    {
+      "id": "s3",
+      "label": "Swap fill valve",
+      "instruction": "Unhook the refill tube, unscrew the old fill valve and lift it out, then fit and tighten the new fill valve and reattach the refill tube",
+      "target_part": "fill valve",
+      "pass_condition": "they say the new fill valve is seated tight with the refill tube attached",
+      "hands_inside": true,
+      "status": "todo",
+      "attempts": [],
+      "before_photo": null
+    },
+    {
+      "id": "s4",
+      "label": "Turn water on",
+      "instruction": "Turn the shutoff knob counterclockwise slowly to let the tank refill",
+      "target_part": "shutoff valve",
+      "pass_condition": "they say water is refilling the tank",
+      "hands_inside": false,
+      "status": "todo",
+      "attempts": [],
+      "before_photo": null
+    },
+    {
+      "id": "s5",
+      "label": "Test flush stops",
+      "instruction": "Flush once and watch the tank refill and shut off on its own",
+      "target_part": "fill valve",
+      "pass_condition": "they say the tank refilled and the running stopped on its own",
+      "hands_inside": false,
+      "status": "todo",
+      "attempts": [],
+      "before_photo": null
+    }
+  ],
+  "verifications": [
+    {
+      "step": "s1",
+      "t": 970.0,
+      "passed": true,
+      "seen": "They said they did it and the shutoff knob is low behind the toilet out of view so the photo cannot judge it.",
+      "correction": "",
+      "photo": "photos/066.jpg"
+    },
+    {
+      "step": "s2",
+      "t": 1042.3,
+      "passed": false,
+      "seen": "They only said yeah to tightening the knob and never said the tank is empty, and the tank still shows water inside.",
+      "correction": "Please hold the flush handle down until the tank drains empty and no more water is coming in.",
+      "photo": "photos/074.jpg"
+    }
+  ],
+  "diagnosis": "fill valve won't shut off",
+  "closeout": null,
+  "stopped": "Shutoff valve fully closed but still lets water by, so fill valve cannot be safely swapped \u2013 needs plumber to replace shutoff valve",
+  "looked_up": [],
+  "pins": [],
+  "cautions": [
+    {
+      "id": "h1",
+      "name": "open tank water",
+      "line": "Water nearby. Keep the headset clear.",
+      "t": 810.2,
+      "seen": 810.2,
+      "acknowledged": 837.7,
+      "how": "said so"
+    },
+    {
+      "id": "h2",
+      "name": "flushing with lid off",
+      "line": "Lid off. Flushing can splash headset.",
+      "t": 862.3,
+      "seen": 873.3,
+      "acknowledged": 882.5,
+      "how": "said so"
+    }
+  ]
+}
