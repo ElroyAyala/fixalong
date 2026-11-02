@@ -8,10 +8,11 @@ namespace Fixalong
     /// <summary>
     /// Caution signs: an amber "!" over a hazard to you or the headset, like the
     /// open tank of water below you, with a tone you hear from where it is. It
-    /// blinks until you acknowledge it. Looking toward it opens its line, like
-    /// "Water nearby. Keep the headset clear.", and then saying "got it" closes
-    /// it (the server hears you and decides), or point at it and pinch. A sign
-    /// keeps the same apparent size near or far.
+    /// blinks until you acknowledge it. It goes up as Felix tells you about it,
+    /// with its line open, like "Water nearby. Keep the headset clear."; after
+    /// that, looking toward it or pointing at it opens the line again. Saying
+    /// "got it" closes it (the server hears you and decides), or point at it and
+    /// pinch. A sign keeps the same apparent size near or far.
     /// </summary>
     public class Cautions : MonoBehaviour
     {
@@ -33,6 +34,8 @@ namespace Fixalong
         public float lookAngle = 15f;
         [Tooltip("How long its line stays open after you look away (seconds).")]
         public float openFor = 3f;
+        [Tooltip("How long its line shows when it goes up, while Felix tells you about it (seconds).")]
+        public float openFirst = 8f;
 
         const float ReferenceDistance = 0.8f;
         const float BadgeSize = 60f; // canvas units
@@ -91,6 +94,7 @@ namespace Fixalong
             var sign = Build(id, text);
             sign.spot = spot;
             sign.shownAt = Time.time;
+            sign.openUntil = Time.time + openFirst; // Felix is telling you about it now
             _signs.Add(sign);
             Debug.Log($"[fixalong] caution sign '{text}'");
             if (cues != null) cues.Play(cues.caution, spot);
@@ -138,6 +142,9 @@ namespace Fixalong
                 {
                     UpdateLooking(sign);
                     aimed = Aimed(sign, pinched, out var pinch);
+                    // Pointing opens its line too. In a headset run, the line opened that way
+                    // didn't count as seen, so the server turned down "got it".
+                    if (aimed) MarkSeen(sign);
                     if (pinch)
                     {
                         Debug.Log($"[fixalong] pinched the caution sign {sign.id}: got it");
@@ -166,10 +173,14 @@ namespace Fixalong
         // Looking toward the sign, or the hazard under it, opens its line.
         void UpdateLooking(Sign sign)
         {
-            var looking = Vector3.Angle(_head.forward, sign.root.position - _head.position) < lookAngle
-                          || Vector3.Angle(_head.forward, sign.spot - _head.position) < lookAngle;
-            if (!looking) return;
-            sign.openUntil = Time.time + openFor;
+            if (Vector3.Angle(_head.forward, sign.root.position - _head.position) < lookAngle
+                || Vector3.Angle(_head.forward, sign.spot - _head.position) < lookAngle)
+                MarkSeen(sign);
+        }
+
+        void MarkSeen(Sign sign)
+        {
+            sign.openUntil = Mathf.Max(sign.openUntil, Time.time + openFor);
             if (sign.seen) return;
             sign.seen = true;
             Debug.Log($"[fixalong] looked at the caution sign {sign.id}");

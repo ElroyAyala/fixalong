@@ -39,7 +39,8 @@ sends everything else as JSON text frames:
                         {"type": "caution", "id": str, "text": str, "photo": snap id,
                          "x": int, "y": int}
                             a hazard to you or the headset: a sign at that point in that
-                            photo, on the same grid as labels, until you acknowledge it
+                            photo, on the same grid as labels, until you acknowledge it.
+                            Sent as Felix starts telling you about it
                         {"type": "caution_done", "id": str}  you acknowledged it: it closes
                         {"type": "farewell"}  the job's done and Felix said goodbye: he heads
                             off, and the panel, labels and pins clear; "Felix" brings him back
@@ -131,6 +132,7 @@ class Headset:
         self._labeling = False
         self._checking_hazards = False
         self._hazards_at = -config.HAZARD_GAP_SECONDS  # the last hazard check
+        self._cautions_due: list[tuple[float, dict]] = []  # (found at, sign) Felix hasn't told yet
         self._named: dict[str, list[str]] = {}  # parts found for a reply he hasn't said yet
         self._last_reply = ""
         self._target = ""  # the part Felix is working on, from the job
@@ -322,9 +324,11 @@ class Headset:
         count = len(self._unanswered)
         said = " ".join(self._unanswered)
         await self.send({"type": "heard", "text": said})
+        # Once Felix has told them about a sign, "got it" is the answer, even before the
+        # headset saw them look at it. In a headset run, it was refused after Felix asked.
         for caution in self.felix.job.cautions:
-            if caution["acknowledged"] is None \
-                    and verify.acknowledges(said, looked=caution["seen"] is not None):
+            if caution["acknowledged"] is None and caution["shown"] is not None \
+                    and verify.acknowledges(said, looked=True):
                 self.acknowledge(caution["id"], "said so")
         thought = asyncio.Event()  # set once he knows what he'll say
         self.spawn(self.fill_in(thought, self.felix.will_check(said)))
@@ -332,11 +336,11 @@ class Headset:
             jpeg, photo, photo_id = await self.request_photo()
             if jpeg:
                 self.label(jpeg, photo, photo_id)
-            start = time.perf_counter()
+            start, begun = time.perf_counter(), time.monotonic()
             turn = await self.felix.turn(said, jpeg, photo, self._labels, self.sounds.describe())
         finally:
             thought.set()
-        await self.answer(turn, said, count, jpeg, photo, photo_id, ms(start))
+        await self.answer(turn, said, count, jpeg, photo, photo_id, ms(start), begun)
 
     async def fill_in(self, thought: asyncio.Event, checking: bool) -> None:
         """A quick "mm-hm" if Felix is slow to answer, or a "let me look" when he's checking
@@ -367,14 +371,16 @@ class Headset:
             jpeg, photo, photo_id = await self.request_photo()
             if jpeg:
                 self.label(jpeg, photo, photo_id)
-        start = time.perf_counter()
+        start, begun = time.perf_counter(), time.monotonic()
         turn = await self.felix.turn("", jpeg, photo, self._labels, self.sounds.describe(),
                                      seen=seen)
-        await self.answer(turn, "", 0, jpeg, photo, photo_id, ms(start))
+        await self.answer(turn, "", 0, jpeg, photo, photo_id, ms(start), begun)
 
     async def answer(self, turn: felix.Reply, said: str, count: int, jpeg: bytes | None,
-                     photo: str | None, photo_id: str, think_ms: int) -> None:
-        """Say Felix's reply once you've paused, after the first count things you said."""
+                     photo: str | None, photo_id: str, think_ms: int, begun: float) -> None:
+        """Say Felix's reply once you've paused, after the first count things you said.
+        begun is when his turn started: signs found before then go up as he speaks, since
+        his [Job] block told him about them."""
         if turn.panel is not None:  # the verifier passed something
             self.session.event("panel", **turn.panel)
             await self.show_panel(turn.panel)
@@ -399,6 +405,12 @@ class Headset:
             self.felix.forget_last()  # you kept talking, so he never said it
             raise
         del self._unanswered[:count]
+        due = [sign for found_at, sign in self._cautions_due if found_at < begun]
+        self._cautions_due = [(t, sign) for t, sign in self._cautions_due if t >= begun]
+        for sign in due:
+            self.felix.job.show_caution(sign["id"])
+            self.session.event("caution_shown", id=sign["id"], text=sign["text"])
+            await self.send(sign)
         await self.say(reply, audio=audio, wanted=parts.asked_for(said, self._labels),
                        voice_ms=voice_ms, said=said, photo=photo, think_ms=think_ms)
         self.felix.said_it(reply)  # the scribe updates the job while he talks
@@ -447,6 +459,7 @@ class Headset:
         self._labels, self._target, self._named = [], "", {}
         self._countdowns.clear()
         self._looked_for.clear()
+        self._cautions_due.clear()
         self.felix = self.new_felix()
         self.felix.greet()  # his history starts as it does at hello, though he doesn't say it
         self._leaving = False
@@ -504,6 +517,15 @@ class Headset:
              "seconds_left": max(0.0, p["ends_at"] - now) if p["ends_at"] else 0.0}
             for p in self.felix.job.pins.values()]})
 
+    async def speak_up(self, label: str) -> None:
+        """Felix tells them his news: right away if nobody's talking, otherwise in his
+        next answer."""
+        while not self._closed and self.felix.has_news():
+            if self.idle():
+                self.start_turn(self.noticed_turn([]), label)
+                return
+            await asyncio.sleep(0.5)
+
     async def when_up(self, part: str, ends_at: float) -> None:
         """When a countdown runs out, Felix hears about it and checks in: right away if
         nobody's talking, otherwise in his next answer."""
@@ -514,11 +536,7 @@ class Headset:
         self.session.event("countdown_done", part=part, text=pin["text"])
         self.felix.news(f"The countdown '{pin['text']}' over the {part} just ran out: check "
                         "in with them about it.")
-        while not self._closed and self.felix.has_news():
-            if self.idle():
-                self.start_turn(self.noticed_turn([]), "countdown")
-                break
-            await asyncio.sleep(0.5)
+        await self.speak_up("countdown")
         # The headset shows it done for a while; then it goes, unless it was replaced.
         await asyncio.sleep(config.PIN_DONE_SECONDS)
         if self.felix.job.pins.get(part) is pin:
@@ -579,8 +597,7 @@ class Headset:
         self.spawn(self._check_hazards(jpeg, photo, photo_id))
 
     async def _check_hazards(self, jpeg: bytes, photo: str | None, photo_id: str) -> None:
-        """Each new hazard gets a caution sign, and Felix keeps listening, so "got it"
-        needs no name."""
+        """Each new hazard gets a caution sign, which goes up when Felix tells them about it."""
         job = self.felix.job
         try:
             start = time.perf_counter()
@@ -589,14 +606,20 @@ class Headset:
             self.session.event("hazards", photo=photo, hazards=found, think_ms=ms(start))
             if not found or job is not self.felix.job or job.phase in ("closed", "stopped"):
                 return
+            # The sign waits for Felix: it goes up as he tells them about it (see answer).
+            # In headset runs, a sign that went up on its own blinked unexplained, and a
+            # first-timer didn't know how to clear it.
             for hazard in found:
                 caution = job.caution(hazard["name"], hazard["line"])
-                await self.send({"type": "caution", "id": caution["id"], "text": caution["line"],
-                                 "photo": photo_id, "x": hazard["x"], "y": hazard["y"]})
+                self._cautions_due.append((time.monotonic(), {
+                    "type": "caution", "id": caution["id"], "text": caution["line"],
+                    "photo": photo_id, "x": hazard["x"], "y": hazard["y"]}))
             job.save()
-            now = time.monotonic()
-            self._open_until = max(self._open_until, now + config.CONVERSATION_SECONDS)
-            await self.send({"type": "listen", "follow_up": self._open_until - now})
+            signs = " and ".join(f"'{h['line']}'" for h in found)
+            self.felix.news(f"A hazard just turned up: {signs}. Stop there and tell them about "
+                            "it: that's the whole reply. The sign goes up in their headset as "
+                            "you say it.")
+            self.spawn(self.speak_up("caution"))
         except Exception as error:
             log.exception("hazard check failed")
             self.session.event("error", during="hazards", error=repr(error))

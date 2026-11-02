@@ -42,11 +42,17 @@ Felix says plainly why and recommends a professional. The user can't talk him pa
 
 The safety gate covers the repair. Cautions cover the user and their gear, at any point in the job. A wet headset is a dead headset, so it's better to warn than to assume they know, and calmly enough not to scare anyone.
 
-- Every photo is also checked for hazards. For the toilet: an open tank of water close below the headset, splashing when flushing with the lid off, a cleaner tablet in the tank, and the lid leaned against the wall or balanced on the bowl. Water on the floor is a stop condition instead (section 2).
+- Every photo is also checked for hazards. For the toilet: an open tank of water close below the headset, and a cleaner tablet dissolving in the tank. Water on the floor is a stop condition instead (section 2). Flush splashes and the lid were on the list too, and were dropped after false signs in headset runs: flushing is part of the proof, and the flush handle was once taken for a loose lid.
 - A new hazard gets an amber caution sign pinned near it in the room, with one short line written by the model: "Water nearby. Keep the headset clear."
-- The sign blinks until the user acknowledges it. Looking toward it opens the caution text (head direction, since Quest 3 has no eye tracking), and then saying "got it", or pointing at it and pinching, closes it. Both work with wet or full hands. Words about the sign itself ("I see the warning") close it even without a look.
-- Once it's acknowledged, Felix says it in his own words, calmly: "I noticed we're working near water. If anything starts spraying, step back and take the headset off first. You don't need it to turn the shutoff valve."
-- A caution doesn't stop the conversation, but a step in that area waits until it's acknowledged.
+- The caution is a moment, led by Felix. The sign doesn't go up on its own: Felix stops at once, in a reply of its own, and the sign goes up as he says it, with its line open: "Hey, check this out. We're working right over water, so if anything starts spraying, step back and take the headset off first. Say got it for me?" The user says "got it", and he thanks them and carries on without repeating it.
+- He gives no new step or test until it's acknowledged. If the user asks something else, he answers it, then asks for "got it" again.
+- Once Felix has told them, "got it" closes the sign wherever they're looking, and so does pointing at it and pinching. Both work with wet or full hands. Afterwards, looking toward the sign or pointing at it opens its line again (head direction, since Quest 3 has no eye tracking).
+- How it got here, over three headset runs:
+  - In the first-timer's run, Felix asked about a sign three times, twice right on top of a test result.
+  - When he left it to the sign, it blinked unmentioned through the whole fix.
+  - When he stopped for it, a second first-timer said "got it" and the sign stayed: he had opened its line by pointing, which didn't count as looking, so his "got it" was turned down. He didn't know how to clear it.
+  - The tester's call: the sign should appear only when Felix is ready to say it, so nobody is confused. The next two first-timers each said "got it" once, and Felix carried on.
+- The check names only what the photo plainly shows. In a headset run, the tank's own back rim at the bottom of a photo was flagged as a loose lid.
 - Each hazard shows once per job, unless it gets worse, like a drip turning into spray.
 
 ## 4. Look and label
@@ -85,13 +91,17 @@ After each probe, Felix credits what the user's action told him, then updates th
 
 The design must allow a probe to rule out Felix's first guess. That's the moment that proves he's solving the problem.
 
+A probe can also mislead, so Felix weighs each result against the earlier ones. When they don't fit together, or the cause left standing doesn't explain everything the user said, he checks the likeliest cause again another way before he settles. An unsure answer ("Hmm, I maybe") isn't a result: he makes the test easier and tries again. A hedged answer that would settle the cause ("one side I think is off") gets one more check: "Is it off its peg, or just sitting a bit crooked?" And when the user says what they think is wrong ("I think the red flap is a little off"), he checks it with them before anything else, even partway through a fix.
+
+This came from the first-timer's run, where the staged fault was a flapper with an ear off its peg. No water was spilling into the overflow tube, which already pointed away from the fill valve. Then an unsure "No I don't" to the press test ruled out the flapper and the chain, and a trickle with the float held up confirmed the fill valve. The fix went to a fill valve swap, and the job stopped at a shutoff valve that let water by. The first-timer said twice that the red flap looked off, and Felix moved on both times.
+
 **Example probes:**
 
 - **Toilet:**
-  - Look at the overflow tube. If water is spilling into it, the water level is too high and the flapper isn't the main cause.
-  - Push the flapper down with a finger. If the running stops, it's the flapper or the chain. If it keeps running, both are ruled out.
-  - Lift the float gently. If the water stops, the water level is set too high. If it doesn't, the fill valve is faulty.
-  - Look at the flapper's two side ears, where they clip onto pegs on each side of the overflow tube's base. Both should be on, with the flapper centered over the drain.
+  - Look at the overflow tube. If water is spilling into it, the water level is too high or the fill valve won't shut off. If none is spilling in, the water is leaving through the flapper, so the fill valve is unlikely.
+  - Push down on the middle of the flapper with a finger and listen for a few seconds. If the running stops, it's the flapper or the chain. If it keeps running, look at how the flapper sits before ruling it out: a crooked flapper, or one with an ear off its peg, often won't seal under a press either.
+  - Lift the float gently and listen at the fill valve. If its hiss stops, the water level is set too high. If it keeps hissing, the fill valve is faulty. A trickle into the bowl that goes on with the float held up is the flapper leaking, not the fill valve.
+  - Look at the flapper's two side ears, where they clip onto pegs on each side of the overflow tube's base. Both should be on, with the flapper centered over the drain. This comes first if anyone has worked on the toilet lately ("my dad tried to fix it"), since it shows from above.
   - With the flapper closed, ask whether the chain hangs a little loose or pulls tight. From above, a hanging chain looks straight either way, so the user's answer decides it.
 - **Smoke alarm:**
   - Listen to the chirp. Felix asks the user how often it chirps and how many chirps at a time, and asks Muse Spark about the mic audio if the mic picks it up.
@@ -110,6 +120,10 @@ The first guesses these overturn are the flapper (the most common cause of a run
   - "Line the flapper ear's hole up with the peg first, then press with your thumb until it pops on."
 - Normalize force once the alignment checks out: "The chain clip takes a firm squeeze to open. That's normal." Say where force stops being safe: "If the shutoff valve won't turn by hand, stop there. Forcing an old valve can break it, and that's a job for a plumber."
 - When a picture would help, like a page of the maker's manual or a diagram he found, Felix can put it on the panel. He decides when it helps; there's no separate flow for it.
+- The user sets the pace, not Felix. When they ask how to do what he asked ("How do I lift it?", "Is clockwise left or right?"), give an unsure answer, or answer something else, they're lost: he answers just that, plainly, and makes sure they're with him before anything new. With a first-timer, he says what a part or a word means the first time he uses it.
+- Each reply covers what the user just said and the one next thing. A caution, a plan and a step all at once is too much.
+- When the user asks what to do with a part, Felix answers from what the photo shows. With the chain unhooked in her hand, the 13-year-old asked "what do I do with this chain thing?", and Felix told her not to clip it anywhere, until she pointed out the flush wouldn't work.
+- When the job turns, like a cause found and the fix about to start, Felix says in a sentence where it's headed and what it takes (a new part, a tool, the water turned off), and asks if they're up for it before the first step: "A tight chain will hold that new flapper right open. We'll give it some slack, takes just a minute, are you up for it?"
 
 ## 8. Verification: "not yet"
 
@@ -124,7 +138,7 @@ When the user says they're done, or answers yes to Felix's question, a separate 
 
 The task is only complete when there's ground-truth proof:
 
-- **Toilet:** after a flush and the refill (about a minute, with a countdown over the fill valve), the user confirms they no longer hear water running. Only if the water level was a suspect does Felix also ask for a look that it sits below the top of the overflow tube. A clean dye test also counts.
+- **Toilet:** after a flush and the refill (about 30 seconds, with a countdown over the fill valve; the test toilet's flush and refill took 24 seconds by the mic), the user confirms they no longer hear water running. Only if the water level was a suspect does Felix also ask for a look that it sits below the top of the overflow tube. A clean dye test also counts.
 - **Smoke alarm:** the test button sounds the full alarm, and the user confirms the chirp has stopped.
 
 The user's confirmation is the ground truth. In testing, the headset's mic stripped background sound, so Felix listens too only when the mic picks the sound up.
@@ -140,6 +154,8 @@ It covers:
 - what was done
 - the verification proof (a reference to a frame or a clip of audio)
 - one prevention tip
+
+If more than one thing changed and the proof can't tell which one did it, he says so instead of naming one cause: "We clipped the ear back on and gave the chain some slack, and one of those did it." In the 13-year-old's run, the staged fault was a tight chain, and the chain came off and went back on with slack partway through. The closeout still blamed the flapper ear she'd reported.
 
 Then Felix asks if they're good to close up, with the finishing touches (for the toilet: set the tank lid back on with both hands, and put the towel away). He doesn't wait to see them done: when the user says they're good, he says a short goodbye ("Nice work today. Say Felix if you need me.") and heads off: he rises and shrinks away once he finishes talking, and the checklist, labels and pins clear. "Felix" brings him back for a new job. If the conversation simply ends after the fix, he heads off then too.
 

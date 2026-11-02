@@ -33,22 +33,24 @@ TOILET = {
     ],
     "stops": ["cracked porcelain", "water on the floor",
               "a shutoff valve that won't turn by hand or that leaks"],
-    # Hazards to the person or the headset: each gets a caution sign (hazards.py).
+    # Hazards to the person or the headset: each gets a caution sign (hazards.py). Not the
+    # lid, which the safety gate covers: on demo day the check took the tank's rim and the
+    # flush handle for a loose lid. Not flushing with the lid off either: every fix's proof
+    # needs that flush, and the warning told a first-timer not to.
     "hazards": ["an open tank of water close below the headset",
-                "flushing with the tank lid off, which can splash",
                 "a cleaner tablet dissolving in the tank, which tints the water blue (a blue "
-                "plastic part, like the fill valve's cap, isn't one)",
-                "the tank lid leaned against the wall or balanced on the bowl, where it can fall "
-                "and crack"],
+                "plastic part, like the fill valve's cap, isn't one)"],
     # How Felix says a caution once they've acknowledged its sign.
-    "caution": "I noticed we're working near water. If anything starts spraying, step back and "
-               "take the headset off first. You don't need it to turn the shutoff valve.",
+    "caution": "Hey, check this out. We're working right over water, so if anything starts "
+               "spraying, step back and take the headset off first. Say got it for me?",
     "parts": ["tank lid", "flapper", "chain", "flush handle", "fill valve", "float", "overflow tube",
               "refill tube", "shutoff valve", "supply line"],
     # What people call things, so Felix doesn't go looking for the wrong problem.
     "words": "People often call the flapper 'the gasket' or 'the seal', and 'leaking' often "
              "means water running into the bowl. Before assuming an outside leak, ask whether "
-             "they see water on the floor or hear it running inside.",
+             "they see water on the floor or hear it running inside. The chain always hooks "
+             "to the flush handle's arm with a little slack: unhooked, the handle can't lift "
+             "the flapper.",
     "causes": [
         "the flapper isn't sealing (worn, warped, or not seated on the drain opening)",
         "a flapper ear isn't clipped onto its peg at the base of the overflow tube, so the "
@@ -59,20 +61,25 @@ TOILET = {
         "the flush handle sticks",
     ],
     "probes": [
-        "look at the overflow tube: water spilling into it means the level is too high, "
-        "so the flapper isn't the main cause",
-        "push the flapper down with a finger: if the running stops, it's the flapper or "
-        "the chain; if it keeps running, both are ruled out",
-        "lift the float gently: if the water stops, the level is set too high; if not, "
-        "the fill valve is faulty",
+        "look at the overflow tube: water spilling into it means the level is too high or "
+        "the fill valve won't shut off. None spilling in means the water is leaving through "
+        "the flapper, so the fill valve is unlikely",
+        "push down on the middle of the flapper with a finger and listen for a few seconds: "
+        "if the running stops, it's the flapper or the chain. If it keeps running, look at "
+        "how the flapper sits before ruling it out: a crooked flapper, or one with an ear "
+        "off its peg, often won't seal under a press either",
+        "lift the float gently and listen at the fill valve: if its hiss stops, the level is "
+        "set too high; if it keeps hissing, the fill valve is faulty. A trickle into the bowl "
+        "that goes on with the float held up is the flapper leaking, not the fill valve",
         "look at the flapper's two side ears, where they clip onto pegs on each side of the "
-        "overflow tube's base: both should be on, with the flapper centered over the drain",
+        "overflow tube's base: both should be on, with the flapper centered over the drain. "
+        "Look first if anyone has worked on the toilet lately: it shows from above",
         "with the flapper closed, ask whether the chain hangs a little loose or pulls tight: "
         "from above, a hanging chain looks straight either way",
     ],
     # Their word is the proof. A look only adds to it when the water level was a suspect:
     # in a headset run, asking for that look after a clear report felt like doubting them.
-    "proof": "after a flush and the refill (about a minute), the user confirms they no longer "
+    "proof": "after a flush and the refill (about 30 seconds), the user confirms they no longer "
              "hear water running. Only if the water level was a suspect, also a look that it "
              "sits below the top of the overflow tube",
     "finish": "Set the tank lid back on with both hands, and put the towel away.",
@@ -130,8 +137,8 @@ FLAT_PACK = {
                 "a big or heavy panel one person is lifting alone",
                 "screws, dowels or the hex key on the floor right where they're kneeling",
                 "a power drill on particleboard, which strips it where a hex key won't"],
-    "caution": "That's a tall one, so keep a hand on it until it's strapped to the wall. "
-               "Furniture tipping over is a real injury, especially with kids around.",
+    "caution": "Hey, check this out. That's a tall one, so keep a hand on it until it's strapped "
+               "to the wall: furniture tipping over is a real injury. Say got it for me?",
     "force": [
         "Snug with the hex key, then stop: particleboard strips if you crank it, and a drill "
         "strips it fast.",
@@ -159,7 +166,8 @@ def brief(domain: dict) -> str:
         lines.append("Words: " + domain["words"])
     lines.append("Stop and recommend a professional for: " + ", ".join(domain["stops"]) + ".")
     if domain.get("caution"):
-        lines.append("Saying a caution, once they've acknowledged its sign, like: "
+        lines.append("Telling them about a hazard, only when the [Job] block lists one not "
+                     "told yet (its caution sign goes up as you say it), like: "
                      + domain["caution"])
     lines.append("Parts (use these names): " + ", ".join(domain["parts"]) + ".")
     if domain.get("causes"):

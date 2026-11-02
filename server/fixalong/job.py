@@ -255,11 +255,18 @@ class Job:
         return "Pinned." + (" You'll hear when the countdown runs out." if seconds else "")
 
     def caution(self, name: str, line: str) -> dict:
-        """A hazard sign in their headset: the hazard's short name and the sign's line."""
+        """A hazard sign for their headset: the hazard's short name and the sign's line.
+        It goes up when Felix tells them about it (shown)."""
         caution = {"id": f"h{len(self.cautions) + 1}", "name": name, "line": line,
-                   "t": self.now(), "seen": None, "acknowledged": None, "how": ""}
+                   "t": self.now(), "shown": None, "seen": None, "acknowledged": None, "how": ""}
         self.cautions.append(caution)
         return caution
+
+    def show_caution(self, caution_id: str) -> None:
+        """Felix is telling them about it, and the sign goes up."""
+        for c in self.cautions:
+            if c["id"] == caution_id and c["shown"] is None:
+                c["shown"] = self.now()
 
     def seen_caution(self, caution_id: str) -> None:
         """They looked at the sign, so its line opened."""
@@ -368,11 +375,16 @@ class Job:
             lines.append("Pinned in their headset: " + "; ".join(
                 f"over the {p['part']}, '{p['text']}'" + _time_left(p) for p in self.pins.values()))
         if self.cautions:
-            lines.append("Caution signs in their headset: " + "; ".join(
+            lines.append("Caution signs: " + "; ".join(
                 f"'{c['line']}' " + ("(acknowledged)" if c["acknowledged"] is not None else
-                                     "(not acknowledged yet: before a step that puts their "
-                                     "hands near it, ask them to look at the sign and say "
-                                     "'got it')")
+                                     "(not told yet: make this reply about it, like 'Hey, "
+                                     "check this out,' then the warning in your own words and "
+                                     "what to do if it happens, then ask them to say got it. "
+                                     "The sign goes up in their headset as you say it)"
+                                     if c["shown"] is None else
+                                     "(told, not acknowledged yet: wait for their 'got it'. "
+                                     "Give no new step or test until then. If they ask "
+                                     "something else, answer it, then ask for it again)")
                 for c in self.cautions))
         for note in self.notes:
             if not note.get("told"):
