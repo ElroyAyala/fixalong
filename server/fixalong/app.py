@@ -93,7 +93,7 @@ def ms(start: float) -> int:
 def health() -> dict:
     return {"ok": True,
             "meta_key": bool(config.MODEL_API_KEY),
-            "voice_key": bool(config.ELEVENLABS_API_KEY)}
+            "voice": config.VOICE_MODEL}
 
 
 # -- the headset ---------------------------------------------------------------

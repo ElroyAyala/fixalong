@@ -47,13 +47,15 @@ PIN_DONE_SECONDS = 20
 # it watches.
 HAZARD_GAP_SECONDS = 6
 
-# Felix's voice (ElevenLabs). The voice ID isn't secret, so it lives here.
-ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "").strip()
-ELEVENLABS_MODEL = "eleven_flash_v2_5"
-FELIX_VOICE_ID = "cjVigY5qzO86Huf0OWal"  # Eric, an ElevenLabs stock voice: calm and patient
-VOICE_SAMPLE_RATE = 24000  # 16-bit mono PCM, which Unity can play without decoding
-# Steadier and a touch slower than ElevenLabs' defaults, for a calm Felix.
-VOICE_SETTINGS = {"stability": 0.6, "similarity_boost": 0.75, "speed": 0.95}
+# Felix's voice: Meta's MMS-TTS for English, open weights, run on this PC.
+VOICE_MODEL = "facebook/mms-tts-eng"
+VOICE_SAMPLE_RATE = 16000  # the model's own rate; 16-bit mono PCM, which Unity plays as is
+VOICE_SPEAKING_RATE = 1.15  # a little quicker than the model's default
+# Less of the model's randomness than its defaults (0.667, 0.8), for a steadier voice.
+VOICE_NOISE = 0.2
+VOICE_DURATION_NOISE = 0.3
+VOICE_SEED = 1  # the same line always sounds the same
+VOICE_PEAK = 0.7  # each line's loudest sample, as a fraction of full scale
 
 # Every session is recorded here (events, photos, Felix's speech) for review
 # and replay. Git-ignored: these are photos of someone's home.

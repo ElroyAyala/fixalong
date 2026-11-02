@@ -10,7 +10,7 @@ Built for the Meta Global AI Developer Hackathon (Indie track, "Build for Your W
 
 ## What it does
 
-- **Hands free.** Say "Felix" and talk. He waits until you pause, and if his answer is slow, a quick "mm-hm" in his own voice tells you he heard.
+- **Hands free.** Say "Felix" and talk. He waits until you pause, and if his answer is slow, a quick "one second" in his own voice tells you he heard.
 - **Labels on the real parts.** Each photo from the headset's camera is searched for the job's parts, and the headset pins a name tag on each one in the room. An arrow marks the part Felix means, and he perches beside it.
 - **A diagnosis you can follow.** A checklist beside the job lists the possible causes and rules them in or out, one test at a time: "Press down on the flapper. Did the running stop?"
 - **Checked steps.** Once he finds the cause, the checklist becomes the repair steps. A separate verifier checks each one and answers "not yet" with a correction when it isn't right.
@@ -48,15 +48,24 @@ The design, and the reason behind each decision, is in [docs/plan.md](docs/plan.
 
 ## Built with Meta
 
-- **Muse Spark 1.3** on the Meta Model API: the talker, scribe, verifier, labeler and hazard check, with Muse Spark's web search for look-ups.
-- **Muse Voice Transcribe**, realtime: Felix's ears. The headset mic streams to it in endpointing mode, so the model decides when you've finished a sentence, with "Felix" as a boosted keyword.
-- **Meta Quest 3** in mixed reality: the Meta XR SDK 207 on OpenXR, the Passthrough Camera API for photos, the Mixed Reality Utility Kit's environment raycasts for depth, and hand tracking to pinch a checklist row or a caution sign.
+Every model fixalong calls is a Meta model:
 
-Felix's voice is ElevenLabs text-to-speech, since the Meta Model API has no speech output.
+| Model | Where it runs | What it does |
+|---|---|---|
+| Muse Spark 1.3 | Meta Model API | The talker, scribe, verifier, labeler and hazard check, with Muse Spark's web search for look-ups |
+| Muse Voice Transcribe | Meta Model API, realtime | Felix's ears. The headset mic streams to it in endpointing mode, so the model decides when you've finished a sentence, with "Felix" as a boosted keyword. |
+| MMS-TTS (`facebook/mms-tts-eng`) | Open weights, on the PC's CPU | Felix's voice, about 0.3-0.7 seconds a line. The Meta Model API has no speech output. |
+
+Everything else is a device or app feature, with no model behind it:
+
+- **Meta Quest 3** in mixed reality: the Meta XR SDK 207 on OpenXR, the Passthrough Camera API for photos, the Mixed Reality Utility Kit's environment raycasts for depth, and hand tracking to pinch a checklist row or a caution sign.
+- **Audio files:** Felix's quick fillers ("one second", "let me see") were made with MMS-TTS ahead of time (`server/make_fillers.py`), and the sound cues are short clips. The headset plays both as they are.
+
+The field test and the demo video were recorded with an earlier voice. In the video, Felix's lines are re-dubbed with MMS-TTS: the same words at the same moments, taken from the session logs. His short fillers are the new ones, since MMS-TTS can't say "mm-hm" clearly.
 
 ## Run it yourself
 
-You need a Meta Quest 3, a Windows PC on the same Wi-Fi, a Meta Model API key and an ElevenLabs API key.
+You need a Meta Quest 3, a Windows PC on the same Wi-Fi and a Meta Model API key. The server downloads the MMS-TTS model (about 140 MB) from Hugging Face the first time it starts.
 
 **Server** (Python 3.11):
 
@@ -67,7 +76,7 @@ python -m venv .venv
 copy .env.example .env
 ```
 
-Paste your keys into `.env`, then check the Meta key and start the server:
+Paste your Meta key into `.env`, then check it and start the server:
 
 ```text
 .venv\Scripts\python.exe check_meta.py
@@ -95,4 +104,4 @@ To connect over USB instead of Wi-Fi, run `adb reverse tcp:8765 tcp:8765`.
 
 ## License
 
-fixalong is licensed under the [GNU Affero General Public License v3.0](LICENSE). If you run a modified version, including as a network service, you must share your changes under the same license. Third-party SDKs and packages (Unity, Meta XR SDK and others) keep their own licenses.
+fixalong is licensed under the [GNU Affero General Public License v3.0](LICENSE). If you run a modified version, including as a network service, you must share your changes under the same license. Third-party SDKs, packages and models (Unity, Meta XR SDK and others) keep their own licenses. Felix's voice model, MMS-TTS, is licensed CC-BY-NC 4.0, for non-commercial use only.
