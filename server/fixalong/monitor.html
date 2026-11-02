@@ -32,7 +32,23 @@
   .pill.off { color: var(--bad); border-color: var(--bad); }
   select { font: inherit; font-size: 14px; padding: 4px 6px; background: var(--panel); color: var(--text);
            border: 1px solid var(--line); border-radius: 6px; max-width: 100%; }
-  main { max-width: 900px; margin: 0 auto; padding: 12px 16px 80px; }
+  /* The timeline, with what's in the headset now beside it on a wide screen. */
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; max-width: 1320px;
+            margin: 0 auto; padding: 12px 16px 80px; align-items: start; }
+  main { min-width: 0; }
+  aside { position: sticky; top: 64px; display: flex; flex-direction: column; gap: 10px; }
+  aside section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  aside h2 { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--dim); }
+  @media (max-width: 1099px) { .layout { grid-template-columns: minmax(0, 1fr); } aside { display: none; } }
+  /* Which Meta model did it. */
+  .who { display: inline-block; margin-left: 8px; font-size: 11px; font-weight: 500; padding: 1px 8px;
+         border-radius: 999px; background: var(--code-bg); color: var(--dim); vertical-align: 1px;
+         font-style: normal; }
+  .who.spark { color: var(--info); }
+  .who.voice { color: var(--ok); }
+  body.story .noise { display: none; }
+  button.pill { font: inherit; font-size: 13px; background: var(--panel); cursor: pointer; }
+  button.rec.on { color: #fff; background: var(--bad); border-color: var(--bad); }
   .row { display: grid; grid-template-columns: 64px 1fr; gap: 12px; padding: 10px 12px; margin: 6px 0;
          background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--line);
          border-radius: 8px; }
@@ -92,8 +108,17 @@
   <label class="dim">Session
     <select id="session"><option value="live">Live: follow the newest</option></select>
   </label>
+  <label class="dim"><input type="checkbox" id="details"> Details</label>
+  <button id="rec" class="pill rec" type="button" title="Record this tab to a video file">● Rec</button>
 </header>
-<main id="timeline"></main>
+<div class="layout">
+  <main id="timeline"></main>
+  <aside aria-label="In the headset now">
+    <section><h2>In the headset now</h2><div id="now-photo" class="dim">No labels yet</div></section>
+    <section><h2>Checklist</h2><div id="now-panel" class="dim">Not up yet</div></section>
+    <section><h2>Verifier, last verdict</h2><div id="now-verdict" class="dim">Nothing checked yet</div></section>
+  </aside>
+</div>
 <div id="hearing" aria-live="polite"></div>
 
 <script>
@@ -103,7 +128,37 @@ let hearingTimer = null;
 const picker = document.getElementById("session");
 const feedPill = document.getElementById("feed");
 const headsetPill = document.getElementById("headset");
+const nowPhoto = document.getElementById("now-photo");
+const nowPanel = document.getElementById("now-panel");
+const nowVerdict = document.getElementById("now-verdict");
 let shown = null; // the session on screen
+
+// Which Meta model each kind of row comes from, for anyone watching.
+const WHO = {
+  heard: ["Muse Voice Transcribe", "voice"],
+  felix_says: ["Muse Spark · talker", "spark"],
+  felix_quiet: ["Muse Spark · talker", "spark"],
+  scribe: ["Muse Spark · scribe, with tools", "spark"],
+  verify: ["Muse Spark · verifier", "spark"],
+  parts: ["Muse Spark · labeler", "spark"],
+  hazards: ["Muse Spark · hazard check", "spark"],
+  looked_up: ["Muse Spark · look-up", "spark"],
+};
+// Rows that only matter when debugging: hidden unless Details is on.
+const NOISE = new Set(["headset_log", "felix_thinks", "photo", "filler", "busy", "rethink",
+                       "caution_seen", "photo_timeout", "hello"]);
+
+// ?replay=<session> shows a recorded session as it looked live, on a clock the caller
+// moves (see replayTo), so it can be filmed frame by frame without a screen recorder's blur.
+const replaying = new URLSearchParams(location.search).get("replay");
+
+const details = document.getElementById("details");
+try { details.checked = !replaying && localStorage.getItem("details") === "on"; } catch {}
+document.body.classList.toggle("story", !details.checked);
+details.onchange = () => {
+  document.body.classList.toggle("story", !details.checked);
+  try { localStorage.setItem("details", details.checked ? "on" : "off"); } catch {}
+};
 
 function el(tag, cls, text) {
   const node = document.createElement(tag);
@@ -181,6 +236,10 @@ function render(session, e) {
           frame.append(tag);
         }
         body.append(frame);
+        if (!e.named_in) {
+          nowPhoto.className = "";
+          nowPhoto.replaceChildren(frame.cloneNode(true));
+        }
       }
       break;
     }
@@ -217,14 +276,18 @@ function render(session, e) {
       break;
     case "farewell":
       body.append(el("b", null, "Felix said goodbye and headed off; the next “Felix” starts a new job"));
+      resetNow(); // the headset clears too
       break;
     case "countdown_done":
       body.append(el("span", null, `Countdown “${e.text}” over the ${e.part} ran out`));
       break;
     case "hazards":
       body.append(el("span", e.hazards.length ? null : "dim", e.hazards.length
-        ? `Caution sign in ${e.photo}: ` + e.hazards.map(h => `“${h.line}” (${h.name})`).join(", ")
+        ? `Hazard in ${e.photo}, its sign waiting for Felix: ` + e.hazards.map(h => `“${h.line}” (${h.name})`).join(", ")
         : `No new hazards in ${e.photo} · ${secs(e.think_ms)}`));
+      break;
+    case "caution_shown":
+      body.append(el("b", null, `Felix brings up a caution, and its sign goes up: “${e.text}”`));
       break;
     case "caution_seen":
       body.append(el("span", "dim", `You looked at caution sign ${e.id}`));
@@ -256,6 +319,8 @@ function render(session, e) {
         list.append(item);
       }
       body.append(el("b", null, e.title || "(panel hidden)"), list);
+      nowPanel.className = "";
+      nowPanel.replaceChildren(el("b", null, e.title || "(hidden)"), list.cloneNode(true));
       break;
     }
     case "verify":
@@ -263,6 +328,8 @@ function render(session, e) {
       body.append(el("b", null, `Verifier on ${e.check}: ${e.passed ? (e.checked_off ? "checked off by them" : e.on_word ? "passed on their word" : "passed") : "not yet"}`),
                   el("div", "meta", "Seen: " + e.seen));
       if (!e.passed && e.correction) body.append(el("div", "meta", "Correction: " + e.correction));
+      nowVerdict.className = "";
+      nowVerdict.replaceChildren(...[...body.childNodes].map(n => n.cloneNode(true)));
       break;
     case "tool_refused":
       body.append(el("b", null, `The server refused ${e.tool}: `), el("span", null, e.error));
@@ -280,9 +347,47 @@ function render(session, e) {
     default:
       body.append(el("code", null, JSON.stringify(e)));
   }
+  if (WHO[e.kind]) {
+    const [name, family] = WHO[e.kind];
+    (body.firstChild || body).append(el("span", "who " + family, name));
+  }
+  if (NOISE.has(e.kind) || (e.kind === "hazards" && !e.hazards.length)
+      || (e.kind === "scribe" && !e.tools.length)) row.classList.add("noise");
   row.append(body);
   timeline.append(row);
-  if (nearBottom) row.scrollIntoView({ block: "end" });
+  if (nearBottom && !replaying) row.scrollIntoView({ block: "end" });
+}
+
+// Replay: the session's events, and how far the clock has got.
+let replayEvents = [], replayNext = 0, replayClock = 0, replayScroll = 0;
+
+// Shows the session as it stood t seconds in, scrolled toward its newest row the way a
+// person watching would follow it. Waits for new photos to load. Returns whether the
+// frame changed, and whether the session is over.
+window.replayTo = async t => {
+  const before = replayNext;
+  while (replayNext < replayEvents.length && replayEvents[replayNext].t <= t) {
+    render(shown, replayEvents[replayNext++]);
+  }
+  const images = [...document.querySelectorAll("img:not([data-ready])")];
+  await Promise.all(images.map(img => img.decode().catch(() => {}).then(() => (img.dataset.ready = "1"))));
+  const bottom = Math.max(0, document.documentElement.scrollHeight - innerHeight);
+  const step = (bottom - replayScroll) * Math.min(1, (t - replayClock) * 5);
+  replayClock = t;
+  const moved = Math.abs(step) >= 0.5;
+  replayScroll = moved ? replayScroll + step : bottom;
+  scrollTo(0, Math.round(replayScroll));
+  return { changed: replayNext > before || moved, done: replayNext >= replayEvents.length };
+};
+
+async function startReplay(sessionId) {
+  document.getElementById("rec").hidden = true;
+  setPill(feedPill, "Live feed: on", true);
+  shown = sessionId;
+  timeline.replaceChildren();
+  resetNow();
+  replayEvents = await (await fetch(`/api/sessions/${sessionId}/events`)).json();
+  window.replayReady = true;
 }
 
 async function loadSessions() {
@@ -294,8 +399,16 @@ async function loadSessions() {
   return sessions;
 }
 
+function resetNow() {
+  nowPhoto.className = nowPanel.className = nowVerdict.className = "dim";
+  nowPhoto.textContent = "No labels yet";
+  nowPanel.textContent = "Not up yet";
+  nowVerdict.textContent = "Nothing checked yet";
+}
+
 async function show(sessionId) {
   timeline.replaceChildren();
+  resetNow();
   shown = sessionId;
   if (!sessionId) {
     timeline.append(el("p", "empty", "No sessions yet. Open fixalong on the headset."));
@@ -319,11 +432,67 @@ function connectFeed() {
     if (session !== shown) {
       if (shown) timeline.append(el("div", "divider", `New session ${session}`));
       else timeline.replaceChildren();
+      resetNow();
       shown = session;
     }
     render(session, event);
   };
 }
+
+// Rec: records this tab to a video in Downloads, named for when it started, so it lines
+// up with the session log. Stop here, or with the browser's "Stop sharing". MP4 (H.264)
+// when the browser can: Chrome's WebM has no duration, and Windows wouldn't play it.
+// High profile, level 5.1, since a tab can be bigger than 1080p; a high bitrate keeps
+// text sharp.
+const REC_TYPES = ["video/mp4;codecs=avc1.640033", "video/mp4;codecs=avc1.640028", "video/mp4",
+                   "video/webm;codecs=vp9", "video/webm"];
+const REC_BITRATE = 12_000_000;
+const recButton = document.getElementById("rec");
+let recorder = null;
+const pad = n => String(n).padStart(2, "0");
+const stamp = d => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-` +
+                   `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+recButton.onclick = async () => {
+  if (recorder) {
+    if (recorder.state === "recording") recorder.stop();
+    return;
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: 30 }, audio: false, preferCurrentTab: true, selfBrowserSurface: "include" });
+  } catch {
+    return; // the picker was cancelled
+  }
+  const type = REC_TYPES.find(t => MediaRecorder.isTypeSupported(t)) || "";
+  const container = type.startsWith("video/mp4") ? "mp4" : "webm";
+  const chunks = [];
+  const started = new Date();
+  recorder = new MediaRecorder(stream, { ...(type && { mimeType: type }), videoBitsPerSecond: REC_BITRATE });
+  recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  const tick = setInterval(() => {
+    const s = Math.round((Date.now() - started) / 1000);
+    recButton.textContent = `■ Stop ${Math.floor(s / 60)}:${pad(s % 60)}`;
+  }, 1000);
+  recorder.onstop = () => {
+    clearInterval(tick);
+    stream.getTracks().forEach(t => t.stop());
+    recorder = null;
+    recButton.textContent = "● Rec";
+    recButton.classList.remove("on");
+    const link = el("a");
+    link.href = URL.createObjectURL(new Blob(chunks, { type: `video/${container}` }));
+    link.download = `fixalong-live-${stamp(started)}.${container}`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+  };
+  stream.getVideoTracks()[0].addEventListener("ended", () => {
+    if (recorder?.state === "recording") recorder.stop();
+  });
+  recorder.start(1000);
+  recButton.classList.add("on");
+  recButton.textContent = "■ Stop 0:00";
+};
 
 picker.onchange = async () => {
   if (picker.value === "live") {
@@ -336,6 +505,7 @@ picker.onchange = async () => {
 
 (async () => {
   const sessions = await loadSessions();
+  if (replaying) return startReplay(replaying);
   await show(sessions[0]?.id);
   connectFeed();
 })();
