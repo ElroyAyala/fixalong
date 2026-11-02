@@ -2,9 +2,9 @@
 
 A hands-free repair guide in augmented reality. Put on the headset, say "Felix," and tell him what's wrong. Felix sees what you see, labels the parts in front of you, works out the cause with you one test at a time, and walks you through the fix, checking each step before the next one.
 
-[![Watch the fixalong demo](https://img.youtube.com/vi/waCvphhuq08/maxresdefault.jpg)](https://youtu.be/waCvphhuq08)
+[![Watch the fixalong demo](https://img.youtube.com/vi/e3m5zFWKM5w/maxresdefault.jpg)](https://youtu.be/e3m5zFWKM5w)
 
-**Demo video (3 minutes):** https://youtu.be/waCvphhuq08
+**Demo video (3 minutes):** https://youtu.be/e3m5zFWKM5w
 
 Built for the Meta Global AI Developer Hackathon (Indie track, "Build for Your World"). Everything in this repo was built from scratch during the event, starting from an empty repo on October 29.
 
